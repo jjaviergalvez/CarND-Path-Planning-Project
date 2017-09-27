@@ -159,6 +159,7 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 
+
 int main() {
   uWS::Hub h;
 
@@ -195,6 +196,7 @@ int main() {
   	map_waypoints_dx.push_back(d_x);
   	map_waypoints_dy.push_back(d_y);
   }
+
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
@@ -240,6 +242,17 @@ int main() {
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+          	
+		    double dist_inc = 50.0/112;
+		    for(int i = 0; i < 50; i++)
+		    {
+		        next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
+		        next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));		        
+		    }
+
+
+		    // TODO END
+		    
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
