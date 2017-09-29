@@ -249,9 +249,48 @@ int main() {
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
-          	
 
           	int prev_size = previous_path_x.size();
+
+          	/*----------------------------------------------------------------------------------------
+			BEGIN: Section of code to cheack where other vehicles are.
+          	----------------------------------------------------------------------------------------*/
+          	if(prev_size > 0){
+          		car_s = end_path_s;
+          	}
+
+          	bool too_close = false;
+
+          	// Find ref_v to use
+          	for(int i = 0; i < sensor_fusion.size(); i++){
+          		// Car is in my lane
+          		float d = sensor_fusion[i][6];
+          		if(d < (2+4*lane+2) && d > (2+4*lane-2)){
+          			double vx = sensor_fusion[i][3];
+          			double vy = sensor_fusion[i][4];
+          			double check_speed = sqrt(vx*vx + vy*vy);
+          			double check_car_s = sensor_fusion[i][5];
+
+          			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
+          			// check s values greater than mine and s group
+          			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
+          				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
+          				// also flag to try to change lanes.
+          				ref_vel = 29.5; //mph
+
+          			}
+          		}
+          	}
+
+
+          	/*----------------------------------------------------------------------------------------
+			END: Section of code to cheack where other vehicles are.
+          	----------------------------------------------------------------------------------------*/
+
+
+          	/*----------------------------------------------------------------------------------------
+			BEGIN: Stay in a lane using splines
+          	----------------------------------------------------------------------------------------*/
 
           	// Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
           	// Later we will interpolate these waypoints with a spline and fill it in with more points that control speed
@@ -364,6 +403,14 @@ int main() {
 
           	}
 
+          	/*----------------------------------------------------------------------------------------
+			END: Stay in a lane using splines
+          	----------------------------------------------------------------------------------------*/
+
+
+			/*----------------------------------------------------------------------------------------
+			BEGIN: Stay in a lane without splines
+          	----------------------------------------------------------------------------------------*/
 /*
 		    double dist_inc = 50.0/112;
 		    for(int i = 0; i < 50; i++)
@@ -378,7 +425,13 @@ int main() {
 		        // next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
 		        // next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));		        
 		    }
-*/
+*/		    
+		    /*----------------------------------------------------------------------------------------
+			END: Stay in a lane without splines
+          	----------------------------------------------------------------------------------------*/
+
+		    
+
 		    // TODO END
 		    
           	msgJson["next_x"] = next_x_vals;
