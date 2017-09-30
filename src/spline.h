@@ -454,7 +454,15 @@ double spline::deriv(int order, double x) const
     return interpol;
 }
 
-
+// This could be useful to calculate the arc length of the spline.
+// More info: http://tutorial.math.lamar.edu/Classes/CalcII/ArcLength.aspx
+// Contribution by: José Javier Gálvez Gamboa Sept/30/2017
+double spline::ds(double x) const
+{
+    double f_deriv = this->deriv(1,x);
+    double ds = sqrt(1.0 + f_deriv*f_deriv);
+    return ds;
+}
 
 } // namespace tk
 
