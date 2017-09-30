@@ -160,27 +160,17 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 
-double simpson(tk::spline f, double a, double b){
-	double f_deriv;
 
+// Simpson's rule implementation; ingreal a function f(x) over the interval [a,b]
+// For more accurate result, the function being integrated need to be relatively smooth over the interval.
+// Base on info from https://en.wikipedia.org/wiki/Simpson%27s_rule
+template<class Function>
+double arc_length(Function& f, double a, double b)
+{
 	double c = (a+b)/2.0;
-	double h3= (b-a)/6.0;
+	double d = (b-a)/6.0;
 
-	// calculate f(a)
-	f_deriv = f.deriv(1,a);
-	double f_a = sqrt(1.0 + f_deriv*f_deriv);
-
-	// calculate f(a)
-	f_deriv = f.deriv(1,b);
-	double f_b = sqrt(1.0 + f_deriv*f_deriv);
-
-	// calculate f(c)
-	f_deriv = f.deriv(1,c);
-	double f_c = sqrt(1.0 + f_deriv*f_deriv);
-
-	double result= h3 * (f_a + 4.0*f_c + f_b);
-
-	return result;
+	return d * (f.ds(a) + 4.0*f.ds(c) + f.ds(b));
 }
 
 vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
@@ -195,10 +185,18 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 
 	std::vector<double> X, Y;
 
+	// int = ? where ? represent number of waypoints before the prev_wp
+    for(int i = 4; i > 0; i--){
+    	double wp = (prev_wp-i)%maps_x.size();
+    	X.push_back(maps_x[wp]);
+    	Y.push_back(maps_y[wp]);    	
+    }
+
     X.push_back(maps_x[prev_wp]);
     Y.push_back(maps_y[prev_wp]);
 
-    for(int i = 1 ; i < 4; i++){
+    // i > ? where ? represent number of waypoints next to prev_xp
+    for(int i = 1 ; i <= 4; i++){
     	double wp = (prev_wp+i)%maps_x.size();
     	X.push_back(maps_x[wp]);
     	Y.push_back(maps_y[wp]);
@@ -222,18 +220,16 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 	f.set_points(X, Y);
 
 	// the arc length we want to find is:
-	double arc_length = s - maps_s[prev_wp];
+	double seg_s = s - maps_s[prev_wp];
 
 	// integrate to calculate the local coordinate x
 	double integral = 100;
-	double x_1 = arc_length;
-	while(integral > arc_length){
-		integral = simpson(f, 0, x_1);
-		x_1 -= 0.01;
+	double x_1 = seg_s;
+	while(integral > seg_s){
+		integral = arc_length(f, 0, x_1);
+		x_1 -= 0.001;
 	}
 	x_1 += 0.01;
-
-	//cout << "arc_length = " << arc_length << "\tintegral = " << integral << "\tx_1 = " << x_1 << endl;
 
 	double y_1 = f(x_1);
 
@@ -244,7 +240,6 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 
 	double x_2 = d * cos(theta) + x_1;
 	double y_2 = d * sin(theta) + y_1;
-
 
 	// rotate back to normal after rotating it earlier
     //rotation transform

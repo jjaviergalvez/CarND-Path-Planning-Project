@@ -112,6 +112,7 @@ public:
                     const std::vector<double>& y, bool cubic_spline=true);
     double operator() (double x) const;
     double deriv(int order, double x) const;
+    double ds(double x) const;
 };
 
 
