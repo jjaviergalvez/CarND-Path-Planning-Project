@@ -160,6 +160,104 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 
+double simpson(tk::spline f, double a, double b){
+	double f_deriv;
+
+	double c = (a+b)/2.0;
+	double h3= (b-a)/6.0;
+
+	// calculate f(a)
+	f_deriv = f.deriv(1,a);
+	double f_a = sqrt(1.0 + f_deriv*f_deriv);
+
+	// calculate f(a)
+	f_deriv = f.deriv(1,b);
+	double f_b = sqrt(1.0 + f_deriv*f_deriv);
+
+	// calculate f(c)
+	f_deriv = f.deriv(1,c);
+	double f_c = sqrt(1.0 + f_deriv*f_deriv);
+
+	double result= h3 * (f_a + 4.0*f_c + f_b);
+
+	return result;
+}
+
+vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
+{
+
+	// four indexes; one behind the s and three next ones. 
+	int prev_wp = -1;
+	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )){
+		prev_wp++;
+	}
+	int wp2 = (prev_wp+1)%maps_x.size();
+
+	std::vector<double> X, Y;
+
+    X.push_back(maps_x[prev_wp]);
+    Y.push_back(maps_y[prev_wp]);
+
+    for(int i = 1 ; i < 4; i++){
+    	double wp = (prev_wp+i)%maps_x.size();
+    	X.push_back(maps_x[wp]);
+    	Y.push_back(maps_y[wp]);
+    }
+
+    // transform from global cordinates to local to the previous waypoint
+    double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+    for (int i = 0 ; i < X.size() ; i++){
+            //traslation transform
+            double x_i = X[i] - maps_x[prev_wp];
+            double y_i = Y[i] - maps_y[prev_wp];
+            //rotation transform
+            X[i] =  x_i*cos(heading) + y_i*sin(heading);
+            Y[i] = -x_i*sin(heading) + y_i*cos(heading);
+	}
+
+	// create a spline
+	tk::spline f;
+
+	// set (X,Y) points to the spline
+	f.set_points(X, Y);
+
+	// the arc length we want to find is:
+	double arc_length = s - maps_s[prev_wp];
+
+	// integrate to calculate the local coordinate x
+	double integral = 100;
+	double x_1 = arc_length;
+	while(integral > arc_length){
+		integral = simpson(f, 0, x_1);
+		x_1 -= 0.01;
+	}
+	x_1 += 0.01;
+
+	//cout << "arc_length = " << arc_length << "\tintegral = " << integral << "\tx_1 = " << x_1 << endl;
+
+	double y_1 = f(x_1);
+
+	double f_deriv = f.deriv(1,x_1);
+	double theta = atan(-1.0/f_deriv);
+	if(f_deriv<0)
+		theta *= -1;
+
+	double x_2 = d * cos(theta) + x_1;
+	double y_2 = d * sin(theta) + y_1;
+
+
+	// rotate back to normal after rotating it earlier
+    //rotation transform
+    double x =  x_2*cos(-heading) + y_2*sin(-heading);
+    double y = -x_2*sin(-heading) + y_2*cos(-heading);
+    //traslation transform
+    x += maps_x[prev_wp];
+   	y += maps_y[prev_wp];
+
+
+	return {x,y};
+
+}
 
 int main() {
   uWS::Hub h;
@@ -255,6 +353,7 @@ int main() {
           	/*----------------------------------------------------------------------------------------
 			BEGIN: Section of code to cheack where other vehicles are.
           	----------------------------------------------------------------------------------------*/
+/*
           	if(prev_size > 0){
           		car_s = end_path_s;
           	}
@@ -278,6 +377,9 @@ int main() {
           				// also flag to try to change lanes.
           				// ref_vel = 29.5; //mph
           				too_close = true;
+          				if(lane > 0){
+          					lane = 0;
+          				}
 
           			}
           		}
@@ -291,17 +393,17 @@ int main() {
           	else if(ref_vel < 49.5){
           		ref_vel += 0.224;
           	}
-
+*/
 
           	/*----------------------------------------------------------------------------------------
 			END: Section of code to cheack where other vehicles are.
-          	----------------------------------------------------------------------------------------*/
+          	----------------------------------------------------------------------------------------*/         
 
 
           	/*----------------------------------------------------------------------------------------
 			BEGIN: Stay in a lane using splines
           	----------------------------------------------------------------------------------------*/
-
+/*
           	// Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
           	// Later we will interpolate these waypoints with a spline and fill it in with more points that control speed
           	vector<double> ptsx;
@@ -351,6 +453,9 @@ int main() {
           	vector<double> next_wp1 = getXY(car_s+60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
           	vector<double> next_wp2 = getXY(car_s+90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
+          	//vector<double> foo = my_getXY(car_s+30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          	//cout << foo[0] << " " << foo[1] << " = "<< next_wp0[0] << " " << next_wp0[1] << endl;
+
           	ptsx.push_back(next_wp0[0]);
           	ptsx.push_back(next_wp1[0]);
           	ptsx.push_back(next_wp2[0]);
@@ -382,7 +487,7 @@ int main() {
           		next_y_vals.push_back(previous_path_y[i]);
           	}
 
-          	//Calculate how to breack up spline points so that we travel at pur desired reference velocity
+          	//Calculate how to break up spline points so that we travel at pur desired reference velocity
           	double target_x = 30.0;
           	double target_y = s(target_x);
           	//double target_dist = sqrt(target_x*target_x + target_y*target_y);
@@ -412,7 +517,7 @@ int main() {
           		next_y_vals.push_back(y_point);
 
           	}
-
+*/
           	/*----------------------------------------------------------------------------------------
 			END: Stay in a lane using splines
           	----------------------------------------------------------------------------------------*/
@@ -421,21 +526,21 @@ int main() {
 			/*----------------------------------------------------------------------------------------
 			BEGIN: Stay in a lane without splines
           	----------------------------------------------------------------------------------------*/
-/*
-		    double dist_inc = 50.0/112;
+
+		    double dist_inc = 49./111;
 		    for(int i = 0; i < 50; i++)
 		    {
 		    	double s = car_s + dist_inc*(i+1);
 		    	double d = 6;
 
-		    	vector<double> XY = getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+		    	vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 		        
 		        next_x_vals.push_back(XY[0]);
 		        next_y_vals.push_back(XY[1]);
 		        // next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
 		        // next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));		        
 		    }
-*/		    
+		    
 		    /*----------------------------------------------------------------------------------------
 			END: Stay in a lane without splines
           	----------------------------------------------------------------------------------------*/
