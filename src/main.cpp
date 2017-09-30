@@ -176,7 +176,6 @@ double arc_length(Function& f, double a, double b)
 vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
 {
 
-	// four indexes; one behind the s and three next ones. 
 	int prev_wp = -1;
 	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )){
 		prev_wp++;
@@ -231,13 +230,15 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 	}
 	x_1 += 0.01;
 
+	//(x_1,y_1) is the point in local coordinates of the s frenet frame
 	double y_1 = f(x_1);
 
-	double f_deriv = f.deriv(1,x_1);
-	double theta = atan(-1.0/f_deriv);
-	if(f_deriv<0)
-		theta *= -1;
+	//calculate the angle of the normal vector (to the right side) at point (x_1,y_1)
+	double m = f.deriv(1,x_1);
+	double theta = atan(-1.0/m);
+	if(m < 0) theta *= -1;
 
+	// calculate the (x_2,y_2) point that is equivalen to (s,d) in local frame
 	double x_2 = d * cos(theta) + x_1;
 	double y_2 = d * sin(theta) + y_1;
 
@@ -248,7 +249,6 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
     //traslation transform
     x += maps_x[prev_wp];
    	y += maps_y[prev_wp];
-
 
 	return {x,y};
 
