@@ -258,9 +258,8 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 	return {x,y};
 }
 
-vector<double> JMT(vector< double> start, vector <double> end, double T)
-{
-    /*
+
+/*
     Calculate the Jerk Minimizing Trajectory that connects the initial state
     to the final state in time T.
 
@@ -282,7 +281,11 @@ vector<double> JMT(vector< double> start, vector <double> end, double T)
 
     > JMT( [0, 10, 0], [10, 10, 0], 1)
     [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
-    */
+*/
+
+vector<double> JMT(vector< double> start, vector <double> end, double T)
+{
+
     MatrixXd A(3,3);
 	VectorXd b(3);
 
@@ -307,6 +310,19 @@ vector<double> JMT(vector< double> start, vector <double> end, double T)
 
     return {si, si_dot, 0.5*si_double_dot, x[0], x[1], x[2]};
     
+}
+
+/*
+function of time t that takes the coefficients of a polynomial.
+*/
+double poly_eval(vector<double> coefficients, double t){
+	double total = 0.0;
+
+	for(int i = 0; i < coefficients.size(); i++){
+		total += coefficients[i]*pow(t,i);
+	}
+
+	return total;
 }
 
 
@@ -353,8 +369,14 @@ int main() {
   // Have a reference velocity to target
   double ref_vel = 0.0;
 
+  double s_dot_prev = 0;
+  double d_dot_prev = 0;
+  double first_s = 0;
+  double first_d = 0;
+  double real_prev_size = 0;
 
-  h.onMessage([&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+
+  h.onMessage([&s_dot_prev,&d_dot_prev,&first_s,&first_d,&real_prev_size,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -578,9 +600,37 @@ int main() {
 			BEGIN: Stay in a lane without splines
           	----------------------------------------------------------------------------------------*/
 
-		    double dist_inc = 45./111;
+/*
+		    for(int i = 0; i < previous_path_x.size() ; i++){
+          		next_x_vals.push_back(previous_path_x[i]);
+          		next_y_vals.push_back(previous_path_y[i]);
+          	}
 
-		    for(int i = 0; i < 50; i++)
+
+          	vector<double> last_frenet;
+
+          	if(prev_size >= 2){
+          		int index_1 = prev_size -1;
+          		int index_0 = index_1 - 1;
+          		double y1 = previous_path_y[index_1];
+          		double y0 = previous_path_y[index_0];
+          		
+          		double x1 = previous_path_x[index_1];
+          		double x0 = previous_path_x[index_0];
+          		
+          		double theta = atan2(y1-y0, x1-x0);
+
+          		last_frenet = getFrenet(previous_path_x[index_1] , previous_path_y[index_1], theta, map_waypoints_x, map_waypoints_y);
+          	}else{
+          		last_frenet = {car_s, car_d};
+          	}
+
+*/
+
+/*          	
+          	double dist_inc = 45./111;
+          	int N = 50;
+		    for(int i = 0; i < N; i++)
 		    {
 		    	double s = car_s + dist_inc*(i+1);
 		    	double d = 6;
@@ -592,21 +642,87 @@ int main() {
 		        // next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
 		        // next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
 		    }
-		    
+*/		    
 		    /*----------------------------------------------------------------------------------------
 			END: Stay in a lane without splines
           	----------------------------------------------------------------------------------------*/
 
+
+		    /*----------------------------------------------------------------------------------------
+			BEGIN: Calculate intitial condiction s_dot and s_double_dot
+          	----------------------------------------------------------------------------------------*/
+          	
+
+          	/*----------------------------------------------------------------------------------------
+			END: Stay in a lane without splines
+          	----------------------------------------------------------------------------------------*/
+          	// convert car_speed to s_dot and d_dot
+
+          	int n_prev = real_prev_size - prev_size ;
+
+          	double s_dot = 0;
+          	double d_dot = 0;
+          	double s_double_dot = 0;
+          	double d_double_dot = 0;
+
+          	if( n_prev > 0){
+          		s_dot = (car_s - first_s) / 0.02;
+          		d_dot = (car_d - first_d) / 0.02;
+          	}
+
+          	/*if( n_prev > 1){
+          		s_double_dot = (s_dot - s_dot_prev) / 0.04;
+          		d_double_dot = (d_dot - d_dot_prev) / 0.04;
+          	}
+
+          	s_dot_prev = s_dot;
+          	d_dot_prev = d_dot;*/
+          	
+
+
 		    // start location of the vehicle: {s, s_dot, s_double_dot}
-/*
-          	vector<double> start = {car_s, car_speed, 0};
-          	vector <double> end = {car_s+30, 45, 0};
-          	double T = 8;
 
-          	vector<double> jmt = JMT(start, end, T);
-*/
+          	double T = 1;
+
+          	vector<double> s_start = {car_s, s_dot, s_double_dot};
+          	vector <double> s_end = {car_s+10, 15.0/2.24, 0};
+          	vector<double> s_trayectory = JMT(s_start, s_end, T);
+
+          	vector<double> d_start = {car_d, d_dot, d_double_dot};
+          	vector <double> d_end = {6, 0, 0};
+          	vector<double> d_trayectory = JMT(d_start, d_end, T);
+
+          	double t = 0.0;
+
+          	cout <<"Car: "<< car_s << "," << car_d << endl;
+          	cout << "Car_speed " << car_speed/2.24 << endl;
+          	cout <<"Frenet speeds: "<< s_dot << "," << d_dot <<endl;
+          	cout <<"Frenet accc: "<< s_double_dot << "," << d_double_dot <<endl;
+
+          	cout << "***********************\n"; 
+
+
+      		first_s = car_s;
+      		first_d = car_d;
+
+	        t += 0.01;
+
+          	while(t <= T+0.01){
+          		double s = poly_eval(s_trayectory, t);
+          		double d = poly_eval(d_trayectory, t);
+
+          		cout << s << " , " << d << endl;
+          		
+          		vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          		
+          		next_x_vals.push_back(XY[0]);
+		        next_y_vals.push_back(XY[1]);
+
+		        t += 0.01;
+          	}
+
+	        real_prev_size = next_x_vals.size();
 		    
-
 		    // TODO END
 		    
           	msgJson["next_x"] = next_x_vals;
