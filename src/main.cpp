@@ -658,58 +658,33 @@ int main() {
           	----------------------------------------------------------------------------------------*/
           	// convert car_speed to s_dot and d_dot
 
-          	int n_prev = real_prev_size - prev_size ;
-
           	double s_dot = 0;
           	double d_dot = 0;
           	double s_double_dot = 0;
           	double d_double_dot = 0;
 
-          	if( n_prev > 0){
-          		s_dot = (car_s - first_s) / 0.02;
-          		d_dot = (car_d - first_d) / 0.02;
-          	}
-
-          	/*if( n_prev > 1){
-          		s_double_dot = (s_dot - s_dot_prev) / 0.04;
-          		d_double_dot = (d_dot - d_dot_prev) / 0.04;
-          	}
-
-          	s_dot_prev = s_dot;
-          	d_dot_prev = d_dot;*/
           	
-
-
 		    // start location of the vehicle: {s, s_dot, s_double_dot}
-
           	double T = 1;
 
           	vector<double> s_start = {car_s, s_dot, s_double_dot};
           	vector <double> s_end = {car_s+10, 15.0/2.24, 0};
-          	vector<double> s_trayectory = JMT(s_start, s_end, T);
+          	vector<double> s_coeff = JMT(s_start, s_end, T);
 
           	vector<double> d_start = {car_d, d_dot, d_double_dot};
           	vector <double> d_end = {6, 0, 0};
-          	vector<double> d_trayectory = JMT(d_start, d_end, T);
-
-          	double t = 0.0;
+          	vector<double> d_coeff = JMT(d_start, d_end, T);
 
           	cout <<"Car: "<< car_s << "," << car_d << endl;
           	cout << "Car_speed " << car_speed/2.24 << endl;
           	cout <<"Frenet speeds: "<< s_dot << "," << d_dot <<endl;
           	cout <<"Frenet accc: "<< s_double_dot << "," << d_double_dot <<endl;
-
           	cout << "***********************\n"; 
 
-
-      		first_s = car_s;
-      		first_d = car_d;
-
-	        t += 0.01;
-
+          	double t = 0.0;
           	while(t <= T+0.01){
-          		double s = poly_eval(s_trayectory, t);
-          		double d = poly_eval(d_trayectory, t);
+          		double s = poly_eval(s_coeff, t);
+          		double d = poly_eval(d_coeff, t);
 
           		cout << s << " , " << d << endl;
           		
