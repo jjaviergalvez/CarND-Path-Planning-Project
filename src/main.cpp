@@ -12,6 +12,9 @@
 
 using namespace std;
 
+using Eigen::MatrixXd;
+using Eigen::VectorXd;
+
 // for convenience
 using json = nlohmann::json;
 
@@ -173,6 +176,8 @@ double arc_length(Function& f, double a, double b)
 	return d * (f.ds(a) + 4.0*f.ds(c) + f.ds(b));
 }
 
+
+// Transform from Frenet s,d coordinates to Cartesian x,y with higer accuracy than getXY
 vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
 {
 
@@ -228,7 +233,7 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 		integral = arc_length(f, 0, x_1);
 		x_1 -= 0.001;
 	}
-	x_1 += 0.01;
+	x_1 += 0.001;
 
 	//(x_1,y_1) is the point in local coordinates of the s frenet frame
 	double y_1 = f(x_1);
@@ -251,8 +256,59 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
    	y += maps_y[prev_wp];
 
 	return {x,y};
-
 }
+
+vector<double> JMT(vector< double> start, vector <double> end, double T)
+{
+    /*
+    Calculate the Jerk Minimizing Trajectory that connects the initial state
+    to the final state in time T.
+
+    INPUTS
+
+    start - the vehicles start location given as a length three array
+        corresponding to initial values of [s, s_dot, s_double_dot]
+
+    end   - the desired end state for vehicle. Like "start" this is a
+        length three array.
+
+    T     - The duration, in seconds, over which this maneuver should occur.
+
+    OUTPUT 
+    an array of length 6, each value corresponding to a coefficent in the polynomial 
+    s(t) = a_0 + a_1 * t + a_2 * t**2 + a_3 * t**3 + a_4 * t**4 + a_5 * t**5
+
+    EXAMPLE
+
+    > JMT( [0, 10, 0], [10, 10, 0], 1)
+    [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
+    */
+    MatrixXd A(3,3);
+	VectorXd b(3);
+
+	double si = start[0];
+	double si_dot = start[1];
+	double si_double_dot = start[2];
+
+	double sf = end[0];
+	double sf_dot = end[1];
+	double sf_double_dot = end[2];
+
+
+	A << pow(T,3)  , pow(T,4)   ,  pow(T,5),
+		 3*pow(T,2), 4*pow(T,3) ,  5*pow(T,4),
+		 6*T 	   , 12*pow(T,2), 20*pow(T,3);
+
+	b << sf - (si + si_dot*T + 0.5 * si_double_dot * pow(T,2) ), 
+		 sf_dot - (si_dot + si_double_dot*T), 
+		 sf_double_dot - si_double_dot;
+
+	VectorXd x = A.colPivHouseholderQr().solve(b);
+
+    return {si, si_dot, 0.5*si_double_dot, x[0], x[1], x[2]};
+    
+}
+
 
 int main() {
   uWS::Hub h;
@@ -522,7 +578,8 @@ int main() {
 			BEGIN: Stay in a lane without splines
           	----------------------------------------------------------------------------------------*/
 
-		    double dist_inc = 49./111;
+		    double dist_inc = 45./111;
+
 		    for(int i = 0; i < 50; i++)
 		    {
 		    	double s = car_s + dist_inc*(i+1);
@@ -533,13 +590,21 @@ int main() {
 		        next_x_vals.push_back(XY[0]);
 		        next_y_vals.push_back(XY[1]);
 		        // next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
-		        // next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));		        
+		        // next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
 		    }
 		    
 		    /*----------------------------------------------------------------------------------------
 			END: Stay in a lane without splines
           	----------------------------------------------------------------------------------------*/
 
+		    // start location of the vehicle: {s, s_dot, s_double_dot}
+/*
+          	vector<double> start = {car_s, car_speed, 0};
+          	vector <double> end = {car_s+30, 45, 0};
+          	double T = 8;
+
+          	vector<double> jmt = JMT(start, end, T);
+*/
 		    
 
 		    // TODO END
