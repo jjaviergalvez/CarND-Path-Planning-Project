@@ -9,11 +9,30 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "spline.h"
+#include <random>
 
 using namespace std;
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+
+// CONSTANTS
+
+const int N_SAMPLES = 10;
+
+const vector<double> SIGMA_S = {10.0, 4.0, 2.0}; // s, s_dot, s_double_dot
+const vector<double> SIGMA_D = {1.0, 1.0, 1.0};
+const double SIGMA_T = 2.0;
+/*
+MAX_JERK = 10 # m/s/s/s
+MAX_ACCEL= 10 # m/s/s
+
+EXPECTED_JERK_IN_ONE_SEC = 2 # m/s/s
+EXPECTED_ACC_IN_ONE_SEC = 1 # m/s
+
+SPEED_LIMIT = 30
+VEHICLE_RADIUS = 1.5 # model vehicle as circle to simplify collision detection
+*/
 
 // for convenience
 using json = nlohmann::json;
@@ -354,8 +373,138 @@ double poly_deriv_eval(vector<double> coefficients, int order, double t){
 	return result;
 }
 
+/*
+	This struct is useful in both following cases:
+
+	1. To store variables related to end conditions of a JMT:
+		s = {s, s_dot, s_double_dot}
+		d = {d, d_dot, d_double_dot}
+		t = T
+
+	2. To store variables related to polynomial coefficients:
+		s = {a_0, a_1, a_2, a_3, a_4, a_5} 
+		d = {b_0, a_1, b_2, b_3, b_4, b_5} 
+		t = T
+
+*/
+struct test_case {	
+		vector<double> s;
+		vector<double> d;
+		double t;
+};
 
 
+/*
+	Returns a "perturbed" version of the goal.
+*/
+vector<vector<double>> perturb_goal(vector<double> goal_s, vector<double> goal_d){
+	
+	vector<vector<double>> perturb_sd;
+
+	double mu, sig;
+	default_random_engine gen;
+
+	vector<double> new_s_goal;
+	for(int i=1; i < 3; i++){
+		mu = goal_s[i];
+		sig = SIGMA_S[i];
+		normal_distribution<double> gauss(mu,sig);
+		new_s_goal.push_back(gauss(gen));
+	}
+
+	perturb_sd.push_back(new_s_goal);
+
+	vector<double> new_d_goal;
+	for(int i=1; i < 3; i++){
+		mu = goal_d[i];
+		sig = SIGMA_D[i];
+		normal_distribution<double> gauss(mu,sig);
+		new_d_goal.push_back(gauss(gen));
+	}
+
+	perturb_sd.push_back(new_d_goal);
+
+	return perturb_sd;
+
+}
+
+/*
+    Finds the best trajectory according to WEIGHTED_COST_FUNCTIONS (global).
+
+    arguments:
+     start_s - [s, s_dot, s_ddot]
+
+     start_d - [d, d_dot, d_ddot]
+
+     target_vehicle - id of leading vehicle (int) which can be used to retrieve
+       that vehicle from the "predictions" dictionary. This is the vehicle that 
+       we are setting our trajectory relative to.
+
+     delta - a length 6 array indicating the offset we are aiming for between us
+       and the target_vehicle. So if at time 5 the target vehicle will be at 
+       [100, 10, 0, 0, 0, 0] and delta is [-10, 0, 0, 4, 0, 0], then our goal 
+       state for t = 5 will be [90, 10, 0, 4, 0, 0]. This would correspond to a 
+       goal of "follow 10 meters behind and 4 meters to the right of target vehicle"
+
+     T - the desired time at which we will be at the goal (relative to now as t=0)
+
+     predictions - dictionary of {v_id : vehicle }. Each vehicle has a method 
+       vehicle.state_in(time) which returns a length 6 array giving that vehicle's
+       expected [s, s_dot, s_ddot, d, d_dot, d_ddot] state at that time.
+
+    return:
+     (best_s, best_d, best_t) where best_s are the 6 coefficients representing s(t)
+     best_d gives coefficients for d(t) and best_t gives duration associated w/ 
+     this trajectory.
+*/
+vector<test_case> PTG(vector<double> start_s, vector<double> start_d, vector<double> goal_s, vector<double> goal_d, double T){
+	
+	// generate alternative goals
+	vector<test_case> all_goals;
+	test_case goals;
+	double timestep = 0.5;
+	double t = T - 4 * timestep;
+
+	while(t <= T + 4 * timestep){
+		goals.s = goal_s;
+		goals.d = goal_d;
+		goals.t  = t;
+
+		all_goals.push_back(goals);
+
+		for(int i = 0; i < N_SAMPLES; i++){
+			vector<vector<double>> perturbed = perturb_goal(goal_s, goal_d);
+			goals.s = perturbed[0];
+			goals.d = perturbed[1];
+			all_goals.push_back(goals);
+		}
+		t += timestep;
+	}
+
+	// find best trajectory
+	vector<test_case> trajectories;
+	test_case trajectory;
+	for(int i = 1; i < all_goals.size(); i++){
+		vector<double> s_goal = all_goals[i].s;
+		vector<double> d_goal = all_goals[i].d;
+		double t = all_goals[i].t;
+
+		vector<double> s_coefficients = JMT(start_s, s_goal, t);
+		vector<double> d_coefficients = JMT(start_d, d_goal, t);
+		
+		trajectory.s = s_coefficients;
+		trajectory.d = d_coefficients;
+		trajectory.t = t;
+
+		trajectories.push_back(trajectory);
+	}
+
+	vector<test_case> best;
+	// TODO: implement the minimization as in python code
+	// best = min(trajectories, key=lambda tr: calculate_cost(tr, target_vehicle, delta, T, predictions, WEIGHTED_COST_FUNCTIONS))
+
+	return best;
+}
 
 
 int main() {
@@ -708,10 +857,10 @@ int main() {
           	}
           	
 		    // start location of the vehicle: {s, s_dot, s_double_dot}
-          	double T = 2;
+          	double T = 4;
           	
           	cout <<"Real pos: \t"<< car_s << " , " << car_d << endl;
-          	if(prev_size > 0){
+          	if(prev_size != 0){
           		car_s = prev_s[index];
           		car_d = prev_d[index];
           	}
@@ -723,21 +872,22 @@ int main() {
           	vector<double> d_start = {car_d, d_dot, d_double_dot};
           	vector <double> d_end = {6, 0, 0};
           	d_coeff = JMT(d_start, d_end, T);
-
+/*
           	cout <<"Frenet_pos: \t"<< car_s << " , " << car_d << endl;
           	cout <<"Frenet speed: \t"<< s_dot << " , " << d_dot <<endl;
           	cout <<"Frenet accc: \t"<< s_double_dot << " , " << d_double_dot <<endl;
           	cout <<"index: \t"<< index <<endl;
+          	cout <<"prev_size: \t"<< prev_size <<endl;
           	cout << "***********************\n"; 
-
+*/
           	double t = t_i;
-          	while(t <= T){
+          	while(t <= T + 0.01){
           		double s = poly_eval(s_coeff, t);
           		double d = poly_eval(d_coeff, t);
 
           		prev_s.push_back(s);
           		prev_d.push_back(d);
-          		cout << s << " , " << d << endl;	
+          		//cout << s << " , " << d << endl;	
           		vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
           		
           		next_x_vals.push_back(XY[0]);
@@ -747,7 +897,8 @@ int main() {
           	}
 
 	        real_prev_size = next_x_vals.size();
-		    
+
+
 		    // TODO END
 		    
           	msgJson["next_x"] = next_x_vals;
