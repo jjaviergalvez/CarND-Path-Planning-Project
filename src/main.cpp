@@ -190,7 +190,7 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 	std::vector<double> X, Y;
 
 	// int = ? where ? represent number of waypoints before the prev_wp
-    for(int i = 4; i > 0; i--){
+    for(int i = 3; i > 0; i--){
     	double wp = (prev_wp-i)%maps_x.size();
     	X.push_back(maps_x[wp]);
     	Y.push_back(maps_y[wp]);    	
@@ -200,7 +200,7 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
     Y.push_back(maps_y[prev_wp]);
 
     // i > ? where ? represent number of waypoints next to prev_xp
-    for(int i = 1 ; i <= 4; i++){
+    for(int i = 1 ; i <= 3; i++){
     	double wp = (prev_wp+i)%maps_x.size();
     	X.push_back(maps_x[wp]);
     	Y.push_back(maps_y[wp]);
@@ -231,9 +231,9 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 	double x_1 = seg_s;
 	while(integral > seg_s){
 		integral = arc_length(f, 0, x_1);
-		x_1 -= 0.001;
+		x_1 -= 0.01;
 	}
-	x_1 += 0.001;
+	x_1 += 0.01;
 
 	//(x_1,y_1) is the point in local coordinates of the s frenet frame
 	double y_1 = f(x_1);
@@ -326,6 +326,37 @@ double poly_eval(vector<double> coefficients, double t){
 }
 
 
+/*
+    Calculates the derivative of a polynomial and returns
+    the corresponding coefficients.
+*/
+vector<double> differentiate(vector<double> coefficients){
+	vector<double> new_coefficients;
+
+	for(int i = 1; i < coefficients.size(); i++){
+		new_coefficients.push_back( (i*coefficients[i]) );
+	}
+
+	return new_coefficients;
+}
+    
+
+double poly_deriv_eval(vector<double> coefficients, int order, double t){
+	
+	assert(order>0);
+	
+	vector<double> new_coefficients = coefficients;
+	
+	for(int i = 0; i < order; i++){
+		new_coefficients = differentiate(new_coefficients);
+	}
+
+	double result = poly_eval(new_coefficients, t);
+
+	return result;
+}
+
+
 int main() {
   uWS::Hub h;
 
@@ -369,14 +400,13 @@ int main() {
   // Have a reference velocity to target
   double ref_vel = 0.0;
 
-  double s_dot_prev = 0;
-  double d_dot_prev = 0;
-  double first_s = 0;
-  double first_d = 0;
-  double real_prev_size = 0;
+  vector<double> s_coeff;
+  vector<double> d_coeff;
+  vector<double> prev_s;
+  vector<double> prev_d;
+  int real_prev_size = 0;
 
-
-  h.onMessage([&s_dot_prev,&d_dot_prev,&first_s,&first_d,&real_prev_size,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&prev_s,&prev_d,&real_prev_size,&s_coeff,&d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -658,42 +688,61 @@ int main() {
           	----------------------------------------------------------------------------------------*/
           	// convert car_speed to s_dot and d_dot
 
+          	double t_i = 0.02;
+
+          	int index = real_prev_size - prev_size;
+
+          	double t_deriv = t_i * index;
+
           	double s_dot = 0;
           	double d_dot = 0;
           	double s_double_dot = 0;
           	double d_double_dot = 0;
 
+          	if(t_deriv > 0){
+          		s_dot = poly_deriv_eval(s_coeff, 1, t_deriv);
+          		d_dot = poly_deriv_eval(d_coeff, 1, t_deriv);
+          		s_double_dot = poly_deriv_eval(s_coeff, 2, t_deriv);
+          		d_double_dot = poly_deriv_eval(d_coeff, 2, t_deriv);
+          	}
           	
 		    // start location of the vehicle: {s, s_dot, s_double_dot}
-          	double T = 1;
+          	double T = 2;
+          	
+          	cout <<"Real pos: \t"<< car_s << " , " << car_d << endl;
+          	if(prev_size > 0){
+          		car_s = prev_s[index];
+          		car_d = prev_d[index];
+          	}
 
           	vector<double> s_start = {car_s, s_dot, s_double_dot};
-          	vector <double> s_end = {car_s+10, 15.0/2.24, 0};
-          	vector<double> s_coeff = JMT(s_start, s_end, T);
+          	vector <double> s_end = {car_s+30, 15.0/2.24, 0};
+          	s_coeff = JMT(s_start, s_end, T);
 
           	vector<double> d_start = {car_d, d_dot, d_double_dot};
           	vector <double> d_end = {6, 0, 0};
-          	vector<double> d_coeff = JMT(d_start, d_end, T);
+          	d_coeff = JMT(d_start, d_end, T);
 
-          	cout <<"Car: "<< car_s << "," << car_d << endl;
-          	cout << "Car_speed " << car_speed/2.24 << endl;
-          	cout <<"Frenet speeds: "<< s_dot << "," << d_dot <<endl;
-          	cout <<"Frenet accc: "<< s_double_dot << "," << d_double_dot <<endl;
+          	cout <<"Frenet_pos: \t"<< car_s << " , " << car_d << endl;
+          	cout <<"Frenet speed: \t"<< s_dot << " , " << d_dot <<endl;
+          	cout <<"Frenet accc: \t"<< s_double_dot << " , " << d_double_dot <<endl;
+          	cout <<"index: \t"<< index <<endl;
           	cout << "***********************\n"; 
 
-          	double t = 0.0;
-          	while(t <= T+0.01){
+          	double t = t_i;
+          	while(t <= T){
           		double s = poly_eval(s_coeff, t);
           		double d = poly_eval(d_coeff, t);
 
-          		cout << s << " , " << d << endl;
-          		
+          		prev_s.push_back(s);
+          		prev_d.push_back(d);
+          		cout << s << " , " << d << endl;	
           		vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
           		
           		next_x_vals.push_back(XY[0]);
 		        next_y_vals.push_back(XY[1]);
 
-		        t += 0.01;
+		        t += t_i;
           	}
 
 	        real_prev_size = next_x_vals.size();
