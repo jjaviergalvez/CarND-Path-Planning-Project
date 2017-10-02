@@ -277,10 +277,6 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
     an array of length 6, each value corresponding to a coefficent in the polynomial 
     s(t) = a_0 + a_1 * t + a_2 * t**2 + a_3 * t**3 + a_4 * t**4 + a_5 * t**5
 
-    EXAMPLE
-
-    > JMT( [0, 10, 0], [10, 10, 0], 1)
-    [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
 */
 
 vector<double> JMT(vector< double> start, vector <double> end, double T)
@@ -313,11 +309,10 @@ vector<double> JMT(vector< double> start, vector <double> end, double T)
 }
 
 /*
-function of time t that takes the coefficients of a polynomial.
+	Function of time t, that takes the coefficients of a polynomial.
 */
 double poly_eval(vector<double> coefficients, double t){
 	double total = 0.0;
-
 	for(int i = 0; i < coefficients.size(); i++){
 		total += coefficients[i]*pow(t,i);
 	}
@@ -340,7 +335,10 @@ vector<double> differentiate(vector<double> coefficients){
 	return new_coefficients;
 }
     
-
+/*
+	Takes the coefficients of a polynomial, calculates it derivative of 
+	some order, and evaluate it at time t.	
+*/
 double poly_deriv_eval(vector<double> coefficients, int order, double t){
 	
 	assert(order>0);
@@ -355,6 +353,9 @@ double poly_deriv_eval(vector<double> coefficients, int order, double t){
 
 	return result;
 }
+
+
+
 
 
 int main() {
