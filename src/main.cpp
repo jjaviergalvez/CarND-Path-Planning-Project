@@ -634,7 +634,7 @@ double efficiency_cost(test_case traj, test_case target, double delta, double T,
 	return 0.0;
 }
 
-double max_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double total_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	double t, acc, total_acc = 0.0;
 	double dt = double(T) / 100.0;
 
@@ -650,7 +650,7 @@ double max_accel_cost(test_case traj, test_case target, double delta, double T, 
 
 }
 
-double total_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double max_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	double acc, t, max_acc = 99999;
 	double dt = double(T) / 100.0;
 
