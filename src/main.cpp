@@ -587,6 +587,9 @@ double buffer_cost(test_case traj, test_case target, double delta, double T, vec
 }
 
 
+/*
+    Penalizes getting out of the drivable area at any point of the trajectory
+*/
 double stays_on_road_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	double t, d;
 	double cost = 0.0;
@@ -603,6 +606,9 @@ double stays_on_road_cost(test_case traj, test_case target, double delta, double
 	return cost;
 }
 
+/*
+    Penalizes exceed the speed limit
+*/
 double exceeds_speed_limit_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	double t, s_dot, d_dot, speed, diff;
 	double cost = 0.0;
