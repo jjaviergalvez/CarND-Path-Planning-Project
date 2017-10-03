@@ -16,7 +16,7 @@ using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
-// C O N S T A N T S 
+// BEGIN: C O N S T A N T S definition
 
 const int N_SAMPLES = 10;
 
@@ -31,8 +31,9 @@ EXPECTED_JERK_IN_ONE_SEC = 2 # m/s/s
 EXPECTED_ACC_IN_ONE_SEC = 1 # m/s
 
 SPEED_LIMIT = 30
-VEHICLE_RADIUS = 1.5 # model vehicle as circle to simplify collision detection
 */
+const double VEHICLE_RADIUS = 1.5; // model vehicle as circle to simplify collision detection
+
 
 // weights of cost functions
 const map<string, double> WEIGHTED_COST_FUNCTIONS = {
@@ -48,7 +49,7 @@ const map<string, double> WEIGHTED_COST_FUNCTIONS = {
     {"total_accel_cost",  1.0}
 };
 
-
+// END: C O N S T A N T S definition
 
 
 // for convenience
@@ -459,6 +460,47 @@ double logistic(double x){
 	return (2.0 / (1 + exp(-x)) - 1.0);
 }
 
+/*
+    Calculates the closest distance a particular vehicle during a trajectory.
+*/
+double nearest_approach(test_case traj, vector<double> vehicle){
+	
+	double t, cur_s, cur_d, targ_s, targ_d, dist;
+	double closest = 99999;
+
+	for(int i = 0; i < 100; i++){
+		t = (float)i / 100 * traj.t;
+		cur_s = poly_eval(traj.s, t);
+		cur_d = poly_eval(traj.d, t);
+		targ_s = vehicle[5];
+		targ_d = vehicle[6];
+		dist = distance(cur_s, cur_d, targ_s, targ_d);
+		if(dist < closest){
+			closest = dist;
+		}
+	}
+
+	return closest;
+}
+
+/*
+    Calculates the closest distance to any vehicle during a trajectory.
+*/
+double nearest_approach_to_any_vehicle(test_case traj, vector<vector<double>> vehicles){
+	vector<double> v;
+	double d, closest = 99999.0;
+
+	for(int i = 0; i < vehicles.size(); i++){
+		v = vehicles[i];
+		d = nearest_approach(traj, v);
+		if(d < closest){
+			closest = d;
+		}
+	}
+
+	return closest;
+}
+
 
 /*----------------------------------------------------------------------------------------
 	BEGIN: Cost Functions
@@ -525,7 +567,13 @@ double d_diff_cost(test_case traj, test_case target, double delta, double T, vec
     Binary cost function which penalizes collisions.
 */
 double collision_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
-	return 0.0;
+	double nearest = nearest_approach_to_any_vehicle(traj, predictions);
+
+	if(nearest < 2*VEHICLE_RADIUS)
+		return 1.0;
+	else
+		return 0.0;
+
 }
 
 /*
