@@ -28,11 +28,9 @@ MAX_JERK = 10 # m/s/s/s
 MAX_ACCEL= 10 # m/s/s
 
 EXPECTED_JERK_IN_ONE_SEC = 2 # m/s/s
-EXPECTED_ACC_IN_ONE_SEC = 1 # m/s
-
 */
+const double EXPECTED_ACC_IN_ONE_SEC = 1; // m/s in frenet frame
 const double SPEED_LIMIT = 30.0; //for the moment this speed corepond in a frenet frame
-
 const double VEHICLE_RADIUS = 1.5; // model vehicle as circle to simplify collision detection
 
 
@@ -637,7 +635,19 @@ double efficiency_cost(test_case traj, test_case target, double delta, double T,
 }
 
 double max_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
-	return 0.0;
+	double t, acc, total_acc = 0.0;
+	double dt = double(T) / 100.0;
+
+	for(int i = 0; i < 100; i++){
+		t = dt * i;
+		acc = poly_deriv_eval(traj.s, 2, t);
+		total_acc += abs(acc*dt);
+	}
+
+	double acc_per_second = total_acc / T;	
+    
+    return logistic(acc_per_second / EXPECTED_ACC_IN_ONE_SEC );
+
 }
 
 double total_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
