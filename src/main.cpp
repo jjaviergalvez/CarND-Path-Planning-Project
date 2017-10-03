@@ -651,7 +651,7 @@ double total_accel_cost(test_case traj, test_case target, double delta, double T
 }
 
 double max_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
-	double acc, t, max_acc = 99999;
+	double acc, t, max_acc = 0;
 	double dt = double(T) / 100.0;
 
 	for(int i = 0; i < 100 ; i++){
