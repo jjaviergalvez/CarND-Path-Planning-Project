@@ -505,7 +505,7 @@ double nearest_approach_to_any_vehicle(test_case traj, vector<vector<double>> ve
     Penalizes trajectories that span a duration which is longer or 
     shorter than the duration requested.
 */
-double time_diff_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double time_diff_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 	double t = traj.t;
 	double cost = logistic(double(abs(t-T)) / T);
 
@@ -517,7 +517,7 @@ double time_diff_cost(test_case traj, test_case target, double delta, double T, 
     Penalizes trajectories whose s coordinate (and derivatives) 
     differ from the goal.
 */
-double s_diff_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double s_diff_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 
 	double cost = 0.0;
 
@@ -540,7 +540,7 @@ double s_diff_cost(test_case traj, test_case target, double delta, double T, vec
 	Penalizes trajectories whose d coordinate (and derivatives) 
     differ from the goal.
 */
-double d_diff_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double d_diff_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 	double cost = 0.0;
 
 	double d = poly_eval(traj.d, traj.t);
@@ -561,7 +561,7 @@ double d_diff_cost(test_case traj, test_case target, double delta, double T, vec
 /*
     Binary cost function which penalizes collisions.
 */
-double collision_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double collision_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 	double nearest = nearest_approach_to_any_vehicle(traj, predictions);
 
 	if(nearest < 2*VEHICLE_RADIUS)
@@ -574,7 +574,7 @@ double collision_cost(test_case traj, test_case target, double delta, double T, 
 /*
     Penalizes getting close to other vehicles.
 */
-double buffer_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double buffer_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 	double nearest = nearest_approach_to_any_vehicle(traj, predictions);
     
     return logistic(2*VEHICLE_RADIUS / nearest);
@@ -584,7 +584,7 @@ double buffer_cost(test_case traj, test_case target, double delta, double T, vec
 /*
     Penalizes getting out of the drivable area at any point of the trajectory
 */
-double stays_on_road_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double stays_on_road_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 	double t, d;
 	double cost = 0.0;
 
@@ -603,7 +603,7 @@ double stays_on_road_cost(test_case traj, test_case target, double delta, double
 /*
     Penalizes exceed the speed limit
 */
-double exceeds_speed_limit_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double exceeds_speed_limit_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 	double t, s_dot, d_dot, speed, max_speed = 0.0;
 	double cost = 0.0;
 
@@ -629,12 +629,12 @@ double exceeds_speed_limit_cost(test_case traj, test_case target, double delta, 
 /*
     Rewards high average speeds.
 */
-double efficiency_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double efficiency_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 	//TODO
 	return 0.0;
 }
 
-double total_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double total_accel_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 	double t, acc, total_acc = 0.0;
 	double dt = double(T) / 100.0;
 
@@ -650,7 +650,7 @@ double total_accel_cost(test_case traj, test_case target, double delta, double T
 
 }
 
-double max_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double max_accel_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 	double acc, t, max_acc = 0;
 	double dt = double(T) / 100.0;
 
@@ -668,7 +668,7 @@ double max_accel_cost(test_case traj, test_case target, double delta, double T, 
 		return 0.0;
 }
 
-double max_jerk_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double max_jerk_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 
 	double jerk, t, max_jerk = 0;
 	double dt = double(T) / 100.0;
@@ -687,7 +687,7 @@ double max_jerk_cost(test_case traj, test_case target, double delta, double T, v
 		return 0.0;
 }
 
-double total_jerk_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+double total_jerk_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
 
 	double t, jerk, total_jerk = 0.0;
 	double dt = double(T) / 100.0;
@@ -705,7 +705,7 @@ double total_jerk_cost(test_case traj, test_case target, double delta, double T,
 
 // Reflection of cost functions. 
 // Idea from https://stackoverflow.com/questions/19473313/how-to-call-a-function-by-its-name-stdstring-in-c
-typedef double (*FnPtr)(test_case, test_case, double, double, vector<vector<double>>);
+typedef double (*FnPtr)(test_case, test_case, double, vector<vector<double>>);
 
 map<string, FnPtr> cf = {
 	{"time_diff_cost",    time_diff_cost},
@@ -721,13 +721,13 @@ map<string, FnPtr> cf = {
 };
 
 
-double calculate_cost(test_case trajectory, test_case target, vector<vector<double>> predictions, bool verbose){
+double calculate_cost(test_case trajectory, test_case target, double goal_t, vector<vector<double>> predictions, bool verbose){
 	double cost = 0.0;
 
 	for (auto& x: WEIGHTED_COST_FUNCTIONS) {
     	auto fname = x.first;
     	double weight = x.second;
-    	double new_cost = weight * cf[fname](trajectory,target,3,4,predictions);
+    	double new_cost = weight * cf[fname](trajectory, target, goal_t, predictions);
     	cost += new_cost;
     	if(verbose){
     		cout << "cost for '" << fname << "' is \t" << new_cost << endl;
