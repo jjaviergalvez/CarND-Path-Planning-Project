@@ -398,7 +398,7 @@ double poly_deriv_eval(vector<double> coefficients, int order, double t){
 		d = {d, d_dot, d_double_dot}
 		t = T
 
-	2. To store variables related to polynomial coefficients:
+	2. To store variables related to polynomial coefficients trajectory:
 		s = {a_0, a_1, a_2, a_3, a_4, a_5} 
 		d = {b_0, a_1, b_2, b_3, b_4, b_5} 
 		t = T
@@ -468,10 +468,11 @@ double logistic(double x){
     Penalizes trajectories that span a duration which is longer or 
     shorter than the duration requested.
 */
-double time_diff_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double time_diff_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	double t = traj.t;
+	double cost = logistic(double(abs(t-T)) / T);
 
-	return logistic(double(abs(t-T)) / T);
+	return cost;
 }
 
 
@@ -479,67 +480,96 @@ double time_diff_cost(test_case traj, double target_vehicle, double delta, doubl
     Penalizes trajectories whose s coordinate (and derivatives) 
     differ from the goal.
 */
-double s_diff_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
-	return 0.0;
+double s_diff_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+
+	double cost = 0.0;
+
+	double s = poly_eval(traj.s, traj.t);
+	double s_dot = poly_deriv_eval(traj.s, 1, traj.t);
+	double s_ddot = poly_deriv_eval(traj.s, 2, traj.t);
+	vector<double> S_traj = {s, s_dot, s_ddot};
+
+	vector<double> S_target = target.s;
+
+	for(int i=1; i < 3; i++){
+		double diff = abs(S_traj[i] - S_target[i]);
+		cost += logistic(diff/SIGMA_S[i]);
+	}
+
+	return cost;
 }
 
 /*
 	Penalizes trajectories whose d coordinate (and derivatives) 
     differ from the goal.
 */
-double d_diff_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
-	return 0.0;
+double d_diff_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+	double cost = 0.0;
+
+	double d = poly_eval(traj.d, traj.t);
+	double d_dot = poly_deriv_eval(traj.d, 1, traj.t);
+	double d_ddot = poly_deriv_eval(traj.d, 2, traj.t);
+	vector<double> D_traj = {d, d_dot, d_ddot};
+
+	vector<double> D_target = target.d;
+
+	for(int i=1; i < 3; i++){
+		double diff = abs(D_traj[i] - D_target[i]);
+		cost += logistic(diff/SIGMA_D[i]);
+	}
+
+	return cost;
 }
 
 /*
     Binary cost function which penalizes collisions.
 */
-double collision_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double collision_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	return 0.0;
 }
 
 /*
     Penalizes getting close to other vehicles.
 */
-double buffer_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double buffer_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	return 0.0;
 }
 
 
-double stays_on_road_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double stays_on_road_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	return 0.0;
 }
 
-double exceeds_speed_limit_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double exceeds_speed_limit_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	return 0.0;
 }
 
 /*
     Rewards high average speeds.
 */
-double efficiency_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double efficiency_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	return 0.0;
 }
 
-double max_accel_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double max_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	return 0.0;
 }
 
-double total_accel_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double total_accel_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	return 0.0;
 }
 
-double max_jerk_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double max_jerk_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	return 0.0;
 }
 
-double total_jerk_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+double total_jerk_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
 	return 0.0;
 }
 
 // Reflection of cost functions. 
 // Idea from https://stackoverflow.com/questions/19473313/how-to-call-a-function-by-its-name-stdstring-in-c
-typedef double (*FnPtr)(test_case, double, double, double, double);
+typedef double (*FnPtr)(test_case, test_case, double, double, vector<vector<double>>);
 
 map<string, FnPtr> cf = {
 	{"time_diff_cost",    time_diff_cost},
@@ -555,13 +585,13 @@ map<string, FnPtr> cf = {
 };
 
 
-double calculate_cost(test_case trajectory, bool verbose){
+double calculate_cost(test_case trajectory, test_case target, vector<vector<double>> predictions, bool verbose){
 	double cost = 0.0;
 
 	for (auto& x: WEIGHTED_COST_FUNCTIONS) {
     	auto fname = x.first;
     	double weight = x.second;
-    	double new_cost = weight * cf[fname](trajectory,2,3,4,5);
+    	double new_cost = weight * cf[fname](trajectory,target,3,4,predictions);
     	cost += new_cost;
     	if(verbose){
     		cout << "cost for '" << fname << "' is \t" << new_cost << endl;
@@ -600,7 +630,7 @@ double calculate_cost(test_case trajectory, bool verbose){
      best_d gives coefficients for d(t) and best_t gives duration associated w/ 
      this trajectory.
 */
-vector<test_case> PTG(vector<double> start_s, vector<double> start_d, vector<double> goal_s, vector<double> goal_d, double T){
+vector<test_case> PTG(vector<double> start_s, vector<double> start_d, vector<double> goal_s, vector<double> goal_d, double T, vector<vector<double>> predictions){
 	
 	// generate alternative goals
 	vector<test_case> all_goals;
