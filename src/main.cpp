@@ -630,6 +630,7 @@ double exceeds_speed_limit_cost(test_case traj, test_case target, double delta, 
     Rewards high average speeds.
 */
 double efficiency_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
+	//TODO
 	return 0.0;
 }
 
@@ -687,7 +688,19 @@ double max_jerk_cost(test_case traj, test_case target, double delta, double T, v
 }
 
 double total_jerk_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
-	return 0.0;
+
+	double t, jerk, total_jerk = 0.0;
+	double dt = double(T) / 100.0;
+
+	for(int i = 0; i < 100; i++){
+		t = dt * i;
+		jerk = poly_deriv_eval(traj.s, 3, t);
+		total_jerk += abs(jerk*dt);
+	}
+
+	double jerk_per_second = total_jerk / T;	
+    
+    return logistic(jerk_per_second / EXPECTED_JERK_IN_ONE_SEC );
 }
 
 // Reflection of cost functions. 
