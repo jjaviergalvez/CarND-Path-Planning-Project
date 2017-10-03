@@ -588,7 +588,19 @@ double buffer_cost(test_case traj, test_case target, double delta, double T, vec
 
 
 double stays_on_road_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
-	return 0.0;
+	double t, d;
+	double cost = 0.0;
+
+	for(int i = 0; i < 100; i++){
+		t = (double)i / 100 * traj.t;
+		d = poly_eval(traj.d, t);
+		
+		if(d < 0.0 || d > 12){
+			cost += d;
+		}		
+	}
+
+	return cost;
 }
 
 double exceeds_speed_limit_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
