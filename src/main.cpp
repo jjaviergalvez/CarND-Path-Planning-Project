@@ -19,15 +19,11 @@ using Eigen::VectorXd;
 // BEGIN: C O N S T A N T S definition
 
 const int N_SAMPLES = 10;
-
 const vector<double> SIGMA_S = {10.0, 4.0, 2.0}; // s, s_dot, s_double_dot
 const vector<double> SIGMA_D = {1.0, 1.0, 1.0};
 const double SIGMA_T = 2.0;
-/*
-MAX_JERK = 10 # m/s/s/s
-
-EXPECTED_JERK_IN_ONE_SEC = 2 # m/s/s
-*/
+const double MAX_JERK = 10.0; // m/s/s/s
+const double EXPECTED_JERK_IN_ONE_SEC = 2; // m/s/s
 const double MAX_ACCEL = 10.0; // m/s/s
 const double EXPECTED_ACC_IN_ONE_SEC = 1; // m/s in frenet frame
 const double SPEED_LIMIT = 30.0; //for the moment this speed corepond in a frenet frame
@@ -672,7 +668,22 @@ double max_accel_cost(test_case traj, test_case target, double delta, double T, 
 }
 
 double max_jerk_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
-	return 0.0;
+
+	double jerk, t, max_jerk = 0;
+	double dt = double(T) / 100.0;
+
+	for(int i = 0; i < 100 ; i++){
+		t = dt * i;
+		jerk = poly_deriv_eval(traj.s, 3, t);
+		jerk = abs(jerk);
+		if(jerk > max_jerk)
+			max_jerk = jerk;
+	}
+
+	if(max_jerk > MAX_JERK)
+		return 1.0;
+	else
+		return 0.0;
 }
 
 double total_jerk_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
