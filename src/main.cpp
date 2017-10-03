@@ -428,6 +428,145 @@ vector<vector<double>> perturb_goal(vector<double> goal_s, vector<double> goal_d
 
 }
 
+/*----------------------------------------------------------------------------------------
+	BEGIN: Helpers Functions
+----------------------------------------------------------------------------------------*/
+
+/*
+    A function that returns a value between 0 and 1 for x in the 
+    range [0, infinity] and -1 to 1 for x in the range [-infinity, infinity].
+
+    Useful for cost functions.
+*/
+double logistic(double x){
+	return (2.0 / (1 + exp(-x)) - 1.0);
+}
+
+
+/*----------------------------------------------------------------------------------------
+	BEGIN: Cost Functions
+----------------------------------------------------------------------------------------*/
+
+// weights of cost functions
+map<string, double> WEIGHTED_COST_FUNCTIONS = {
+	{"time_diff_cost",    1.0},
+    {"s_diff_cost",       1.0},
+    {"d_diff_cost",       1.0},
+    {"efficiency_cost",   1.0},
+    {"max_jerk_cost",     1.0},
+    {"total_jerk_cost",   1.0},
+    {"collision_cost",    1.0},
+    {"buffer_cost",       1.0},
+    {"max_accel_cost",    1.0},
+    {"total_accel_cost",  1.0}
+};
+
+
+/*
+    Penalizes trajectories that span a duration which is longer or 
+    shorter than the duration requested.
+*/
+double time_diff_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+
+/*
+    Penalizes trajectories whose s coordinate (and derivatives) 
+    differ from the goal.
+*/
+double s_diff_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+/*
+	Penalizes trajectories whose d coordinate (and derivatives) 
+    differ from the goal.
+*/
+double d_diff_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+/*
+    Binary cost function which penalizes collisions.
+*/
+double collision_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+/*
+    Penalizes getting close to other vehicles.
+*/
+double buffer_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+
+double stays_on_road_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+double exceeds_speed_limit_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+/*
+    Rewards high average speeds.
+*/
+double efficiency_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+double max_accel_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+double total_accel_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+double max_jerk_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+double total_jerk_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+	return 0.0;
+}
+
+// Reflection of cost functions. 
+// Idea from https://stackoverflow.com/questions/19473313/how-to-call-a-function-by-its-name-stdstring-in-c
+typedef double (*FnPtr)(double, double, double, double, double);
+
+map<string, FnPtr> cf = {
+	{"time_diff_cost",    time_diff_cost},
+    {"s_diff_cost",       s_diff_cost},
+    {"d_diff_cost",       d_diff_cost},
+    {"efficiency_cost",   efficiency_cost},
+    {"max_jerk_cost",     max_jerk_cost},
+    {"total_jerk_cost",   total_jerk_cost},
+    {"collision_cost",    collision_cost},
+    {"buffer_cost",       buffer_cost},
+    {"max_accel_cost",    max_accel_cost},
+    {"total_accel_cost",  total_accel_cost}
+};
+
+
+double calculate_cost(bool verbose){
+	double cost = 0.0;
+
+	for (auto& x: WEIGHTED_COST_FUNCTIONS) {
+    	auto fname = x.first;
+    	double weight = x.second;
+    	double new_cost = weight * cf[fname](1,2,3,4,5);
+    	cost += new_cost;
+    	if(verbose){
+    		cout << "cost for '" << fname << "' is \t" << new_cost << endl;
+    	}
+  	}
+
+	return cost;
+}
+
 /*
     Finds the best trajectory according to WEIGHTED_COST_FUNCTIONS (global).
 
