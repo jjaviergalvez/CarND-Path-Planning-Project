@@ -580,9 +580,9 @@ double collision_cost(test_case traj, test_case target, double delta, double T, 
     Penalizes getting close to other vehicles.
 */
 double buffer_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
-	double nearest = nearest_approach_to_any_vehicle(traj, predictions)
+	double nearest = nearest_approach_to_any_vehicle(traj, predictions);
     
-    return logistic(2*VEHICLE_RADIUS / nearest)
+    return logistic(2*VEHICLE_RADIUS / nearest);
 }
 
 
