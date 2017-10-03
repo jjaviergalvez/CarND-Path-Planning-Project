@@ -16,7 +16,7 @@ using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
-// CONSTANTS
+// C O N S T A N T S 
 
 const int N_SAMPLES = 10;
 
@@ -33,6 +33,23 @@ EXPECTED_ACC_IN_ONE_SEC = 1 # m/s
 SPEED_LIMIT = 30
 VEHICLE_RADIUS = 1.5 # model vehicle as circle to simplify collision detection
 */
+
+// weights of cost functions
+const map<string, double> WEIGHTED_COST_FUNCTIONS = {
+	{"time_diff_cost",    1.0},
+    {"s_diff_cost",       1.0},
+    {"d_diff_cost",       1.0},
+    {"efficiency_cost",   1.0},
+    {"max_jerk_cost",     1.0},
+    {"total_jerk_cost",   1.0},
+    {"collision_cost",    1.0},
+    {"buffer_cost",       1.0},
+    {"max_accel_cost",    1.0},
+    {"total_accel_cost",  1.0}
+};
+
+
+
 
 // for convenience
 using json = nlohmann::json;
@@ -447,27 +464,14 @@ double logistic(double x){
 	BEGIN: Cost Functions
 ----------------------------------------------------------------------------------------*/
 
-// weights of cost functions
-map<string, double> WEIGHTED_COST_FUNCTIONS = {
-	{"time_diff_cost",    1.0},
-    {"s_diff_cost",       1.0},
-    {"d_diff_cost",       1.0},
-    {"efficiency_cost",   1.0},
-    {"max_jerk_cost",     1.0},
-    {"total_jerk_cost",   1.0},
-    {"collision_cost",    1.0},
-    {"buffer_cost",       1.0},
-    {"max_accel_cost",    1.0},
-    {"total_accel_cost",  1.0}
-};
-
-
 /*
     Penalizes trajectories that span a duration which is longer or 
     shorter than the duration requested.
 */
-double time_diff_cost(double traj, double target_vehicle, double delta, double T, double predictions){
-	return 0.0;
+double time_diff_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
+	double t = traj.t;
+
+	return logistic(double(abs(t-T)) / T);
 }
 
 
@@ -475,7 +479,7 @@ double time_diff_cost(double traj, double target_vehicle, double delta, double T
     Penalizes trajectories whose s coordinate (and derivatives) 
     differ from the goal.
 */
-double s_diff_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double s_diff_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
@@ -483,59 +487,59 @@ double s_diff_cost(double traj, double target_vehicle, double delta, double T, d
 	Penalizes trajectories whose d coordinate (and derivatives) 
     differ from the goal.
 */
-double d_diff_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double d_diff_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
 /*
     Binary cost function which penalizes collisions.
 */
-double collision_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double collision_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
 /*
     Penalizes getting close to other vehicles.
 */
-double buffer_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double buffer_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
 
-double stays_on_road_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double stays_on_road_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
-double exceeds_speed_limit_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double exceeds_speed_limit_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
 /*
     Rewards high average speeds.
 */
-double efficiency_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double efficiency_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
-double max_accel_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double max_accel_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
-double total_accel_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double total_accel_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
-double max_jerk_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double max_jerk_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
-double total_jerk_cost(double traj, double target_vehicle, double delta, double T, double predictions){
+double total_jerk_cost(test_case traj, double target_vehicle, double delta, double T, double predictions){
 	return 0.0;
 }
 
 // Reflection of cost functions. 
 // Idea from https://stackoverflow.com/questions/19473313/how-to-call-a-function-by-its-name-stdstring-in-c
-typedef double (*FnPtr)(double, double, double, double, double);
+typedef double (*FnPtr)(test_case, double, double, double, double);
 
 map<string, FnPtr> cf = {
 	{"time_diff_cost",    time_diff_cost},
@@ -551,13 +555,13 @@ map<string, FnPtr> cf = {
 };
 
 
-double calculate_cost(bool verbose){
+double calculate_cost(test_case trajectory, bool verbose){
 	double cost = 0.0;
 
 	for (auto& x: WEIGHTED_COST_FUNCTIONS) {
     	auto fname = x.first;
     	double weight = x.second;
-    	double new_cost = weight * cf[fname](1,2,3,4,5);
+    	double new_cost = weight * cf[fname](trajectory,2,3,4,5);
     	cost += new_cost;
     	if(verbose){
     		cout << "cost for '" << fname << "' is \t" << new_cost << endl;
