@@ -30,8 +30,9 @@ MAX_ACCEL= 10 # m/s/s
 EXPECTED_JERK_IN_ONE_SEC = 2 # m/s/s
 EXPECTED_ACC_IN_ONE_SEC = 1 # m/s
 
-SPEED_LIMIT = 30
 */
+const double SPEED_LIMIT = 30.0; //for the moment this speed corepond in a frenet frame
+
 const double VEHICLE_RADIUS = 1.5; // model vehicle as circle to simplify collision detection
 
 
@@ -591,7 +592,23 @@ double stays_on_road_cost(test_case traj, test_case target, double delta, double
 }
 
 double exceeds_speed_limit_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
-	return 0.0;
+	double t, s_dot, d_dot, speed, diff;
+	double cost = 0.0;
+
+	for(int i = 0; i < 100; i++){
+		t = (double)i / 100 * traj.t;
+		s_dot = poly_deriv_eval(traj.s, 1, t);
+		d_dot = poly_deriv_eval(traj.d, 1, t);
+
+		speed = sqrt(s_dot*s_dot + d_dot*d_dot);
+		
+		if(speed > SPEED_LIMIT){
+			diff = speed - SPEED_LIMIT;
+			cost += diff;
+		}
+	}
+
+	return cost;
 }
 
 /*
