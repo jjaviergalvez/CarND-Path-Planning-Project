@@ -737,6 +737,22 @@ double calculate_cost(test_case trajectory, test_case target, double goal_t, vec
 	return cost;
 }
 
+test_case min_trajectory_cost(vector<test_case> trajectories, test_case target, double T, vector<vector<double>> predictions){
+	double cost, min_cost = 99999;
+	test_case tr, best;
+
+	for(int i = 0; i < trajectories.size(); i++){
+		tr = trajectories[i];
+		cost = calculate_cost(tr, target, T, predictions, false);
+		if(cost < min_cost){
+			min_cost = cost;
+			best = tr;
+		}
+	}
+
+	return best;
+}
+
 /*
     Finds the best trajectory according to WEIGHTED_COST_FUNCTIONS (global).
 
@@ -766,7 +782,7 @@ double calculate_cost(test_case trajectory, test_case target, double goal_t, vec
      best_d gives coefficients for d(t) and best_t gives duration associated w/ 
      this trajectory.
 */
-vector<test_case> PTG(vector<double> start_s, vector<double> start_d, vector<double> goal_s, vector<double> goal_d, double T, vector<vector<double>> predictions){
+test_case PTG(vector<double> start_s, vector<double> start_d, vector<double> goal_s, vector<double> goal_d, double T, vector<vector<double>> predictions){
 	
 	// generate alternative goals
 	vector<test_case> all_goals;
@@ -808,9 +824,12 @@ vector<test_case> PTG(vector<double> start_s, vector<double> start_d, vector<dou
 		trajectories.push_back(trajectory);
 	}
 
-	vector<test_case> best;
-	// TODO: implement the minimization as in python code
-	// best = min(trajectories, key=lambda tr: calculate_cost(tr, target_vehicle, delta, T, predictions, WEIGHTED_COST_FUNCTIONS))
+	test_case target, best;
+	target.s = goal_s;
+	target.d = goal_d;
+	target.t = T;
+
+	best = min_trajectory_cost(trajectories, target, T, predictions);
 
 	return best;
 }
