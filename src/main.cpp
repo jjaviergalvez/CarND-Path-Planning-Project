@@ -38,7 +38,7 @@ const map<string, double> WEIGHTED_COST_FUNCTIONS = {
     {"efficiency_cost",   1.0},
     {"max_jerk_cost",     1.0},
     {"total_jerk_cost",   1.0},
-    {"collision_cost",    1.0},
+    {"collision_cost",    100.0},
     {"buffer_cost",       1.0},
     {"max_accel_cost",    1.0},
     {"total_accel_cost",  1.0}
@@ -876,7 +876,7 @@ int main() {
   int lane = 1;
 
   // Have a reference velocity to target
-  double ref_vel = 0.0;
+  double ref_vel = 30.0;
 
   vector<double> s_coeff;
   vector<double> d_coeff;
@@ -1166,6 +1166,7 @@ int main() {
           	----------------------------------------------------------------------------------------*/
           	// convert car_speed to s_dot and d_dot
 
+/*
           	double t_i = 0.02;
 
           	int index = real_prev_size - prev_size;
@@ -1200,14 +1201,14 @@ int main() {
           	vector<double> d_start = {car_d, d_dot, d_double_dot};
           	vector <double> d_end = {6, 0, 0};
           	d_coeff = JMT(d_start, d_end, T);
-/*
+
           	cout <<"Frenet_pos: \t"<< car_s << " , " << car_d << endl;
           	cout <<"Frenet speed: \t"<< s_dot << " , " << d_dot <<endl;
           	cout <<"Frenet accc: \t"<< s_double_dot << " , " << d_double_dot <<endl;
           	cout <<"index: \t"<< index <<endl;
           	cout <<"prev_size: \t"<< prev_size <<endl;
           	cout << "***********************\n"; 
-*/
+
           	double t = t_i;
           	while(t <= T + 0.01){
           		double s = poly_eval(s_coeff, t);
@@ -1225,6 +1226,66 @@ int main() {
           	}
 
 	        real_prev_size = next_x_vals.size();
+*/
+
+
+          	double t_i = 0.02; // time when the car move to the next point
+
+          	int index = real_prev_size - prev_size; // number of points the car visited
+
+          	double t_deriv = t_i * index; // the time we gona use to estimate the actual vel and acc
+
+          	// Estimate the initial state
+          	double s = car_s;
+          	double d = car_d;
+          	double s_dot = 0;
+          	double d_dot = 0;
+          	double s_ddot = 0;
+          	double d_ddot = 0;
+          	if(t_deriv > 0){
+          		s = prev_s[index];
+          		d = prev_d[index];
+          		s_dot = poly_deriv_eval(s_coeff, 1, t_deriv);
+          		d_dot = poly_deriv_eval(d_coeff, 1, t_deriv);
+          		s_ddot = poly_deriv_eval(s_coeff, 2, t_deriv);
+          		d_ddot = poly_deriv_eval(d_coeff, 2, t_deriv);
+          	}
+
+          	vector<double> s_start = {s, s_dot, s_ddot};
+          	vector<double> d_start = {d, d_dot, d_ddot};
+
+
+          	double T = 2;
+
+          	vector <double> s_end = {s+40, 8, 0};
+          	vector <double> d_end = {6, 0, 0};
+
+
+          	test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, sensor_fusion);
+
+
+          	s_coeff = trajectory_to_execute.s;
+          	d_coeff = trajectory_to_execute.d;
+
+          	// Prepare to send values to the simulator
+          	double t = t_i;
+          	while(t <= T + 0.01){
+          		double s = poly_eval(trajectory_to_execute.s, t);
+          		double d = poly_eval(trajectory_to_execute.d, t);
+
+          		prev_s.push_back(s);
+          		prev_d.push_back(d);
+          		//cout << s << " , " << d << endl;	
+          		vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+          		
+          		next_x_vals.push_back(XY[0]);
+		        next_y_vals.push_back(XY[1]);
+
+		        t += t_i;
+          	}
+
+          	
+
 
 
 		    // TODO END
