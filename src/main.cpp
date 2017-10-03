@@ -608,7 +608,7 @@ double stays_on_road_cost(test_case traj, test_case target, double delta, double
     Penalizes exceed the speed limit
 */
 double exceeds_speed_limit_cost(test_case traj, test_case target, double delta, double T, vector<vector<double>> predictions){
-	double t, s_dot, d_dot, speed, diff;
+	double t, s_dot, d_dot, speed, max_speed = 0.0;
 	double cost = 0.0;
 
 	for(int i = 0; i < 100; i++){
@@ -618,11 +618,14 @@ double exceeds_speed_limit_cost(test_case traj, test_case target, double delta, 
 
 		speed = sqrt(s_dot*s_dot + d_dot*d_dot);
 		
-		if(speed > SPEED_LIMIT){
-			diff = speed - SPEED_LIMIT;
-			cost += diff;
-		}
+		if(speed > max_speed)
+			max_speed = speed;
 	}
+
+	if(max_speed > SPEED_LIMIT)
+		return 1.0;
+	else
+		return 0.0;
 
 	return cost;
 }
