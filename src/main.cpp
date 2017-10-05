@@ -786,13 +786,13 @@ int main() {
   // Have a reference velocity to target
   double ref_vel = 30.0;
 
-  vector<double> s_coeff;
-  vector<double> d_coeff;
+  vector<double> prev_s_coeff;
+  vector<double> prev_d_coeff;
   vector<double> prev_s;
   vector<double> prev_d;
   int real_prev_size = 0;
 
-  h.onMessage([&prev_s,&prev_d,&real_prev_size,&s_coeff,&d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&prev_s,&prev_d,&real_prev_size,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -1136,10 +1136,11 @@ int main() {
 	        real_prev_size = next_x_vals.size();
 */
 
+          	// The time in sec that car takes to visit each control point
+          	double t_i = 0.02;
 
-          	double t_i = 0.02; // time when the car move to the next point
-
-          	int index = real_prev_size - prev_size; // number of points the car visited
+          	// Number of points the car visited
+          	int index = real_prev_size - prev_size; 
 
           	double t_deriv = t_i * index; // the time we gona use to estimate the actual vel and acc
 
@@ -1153,38 +1154,29 @@ int main() {
           	if(index != 0){
           		s = prev_s[index];
           		d = prev_d[index];
-          		s_dot = poly_deriv_eval(s_coeff, 1, t_deriv);
-          		d_dot = poly_deriv_eval(d_coeff, 1, t_deriv);
-          		s_ddot = poly_deriv_eval(s_coeff, 2, t_deriv);
-          		d_ddot = poly_deriv_eval(d_coeff, 2, t_deriv);
+          		s_dot = poly_deriv_eval(prev_s_coeff, 1, t_deriv);
+          		d_dot = poly_deriv_eval(prev_d_coeff, 1, t_deriv);
+          		s_ddot = poly_deriv_eval(prev_s_coeff, 2, t_deriv);
+          		d_ddot = poly_deriv_eval(prev_d_coeff, 2, t_deriv);
           	}
 
           	vector<double> s_start = {s, s_dot, s_ddot};
           	vector<double> d_start = {d, d_dot, d_ddot};
 
-
-          	// Begin path planning
-
           	cout << "s_dot : " << s_dot << endl;
 
+          	// Define end-state 
           	double T = 10;
           	double dist = 100;
           	//if(s_dot >= 10){
           	//	T = dist/s_dot;
           	//}
-
           	vector <double> s_end = {s+dist, 10, 0};
           	vector <double> d_end = {6, 0, 0};
-
-          	// End path planing
 
 
           	// Trayectory planner
           	test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, sensor_fusion);
-
-
-          	s_coeff = trajectory_to_execute.s;
-          	d_coeff = trajectory_to_execute.d;
 
           	// Prepare to send values to the controler of the simulator
 			double t = t_i;
@@ -1203,11 +1195,10 @@ int main() {
 		        t += t_i;
           	}
 
-
+          	// Save some last variables sent
           	real_prev_size = next_x_vals.size();
-
-          	
-
+          	prev_s_coeff = trajectory_to_execute.s;
+          	prev_d_coeff = trajectory_to_execute.d;
 
 
 		    // TODO END
