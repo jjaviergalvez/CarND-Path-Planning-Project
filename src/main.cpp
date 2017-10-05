@@ -1162,6 +1162,9 @@ int main() {
           	vector<double> s_start = {s, s_dot, s_ddot};
           	vector<double> d_start = {d, d_dot, d_ddot};
 
+
+          	// Begin path planning
+
           	cout << "s_dot : " << s_dot << endl;
 
           	double T = 10;
@@ -1173,39 +1176,33 @@ int main() {
           	vector <double> s_end = {s+dist, 10, 0};
           	vector <double> d_end = {6, 0, 0};
 
+          	// End path planing
 
+
+          	// Trayectory planner
           	test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, sensor_fusion);
 
 
           	s_coeff = trajectory_to_execute.s;
           	d_coeff = trajectory_to_execute.d;
 
-          	// Prepare to send values to the simulator
-          	if (prev_size == 0){
-				double t = t_i;
-	          	while(t <= T + 0.01){
-	          		double s = poly_eval(trajectory_to_execute.s, t);
-	          		double d = poly_eval(trajectory_to_execute.d, t);
+          	// Prepare to send values to the controler of the simulator
+			double t = t_i;
+          	while(t <= T + 0.01){
+          		double s = poly_eval(trajectory_to_execute.s, t);
+          		double d = poly_eval(trajectory_to_execute.d, t);
 
-	          		prev_s.push_back(s);
-	          		prev_d.push_back(d);
-	          		//cout << s << " , " << d << endl;	
-	          		vector<double> XY = getXY(s, d);
+          		prev_s.push_back(s);
+          		prev_d.push_back(d);
+          		//cout << s << " , " << d << endl;	
+          		vector<double> XY = getXY(s, d);
 
-	          		next_x_vals.push_back(XY[0]);
-	          		next_y_vals.push_back(XY[1]);
+          		next_x_vals.push_back(XY[0]);
+          		next_y_vals.push_back(XY[1]);
 
-			        t += t_i;
-	          	}
-
-
-          	}else{
-          		for(int i = 0; i < prev_size; i++){
-          			next_x_vals.push_back(previous_path_x[i]);
-          			next_y_vals.push_back(previous_path_y[i]);
-          		}
-
+		        t += t_i;
           	}
+
 
           	real_prev_size = next_x_vals.size();
 
