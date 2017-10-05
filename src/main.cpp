@@ -29,7 +29,6 @@ const double EXPECTED_ACC_IN_ONE_SEC = 1; // m/s in frenet frame
 const double SPEED_LIMIT = 30.0; //for the moment this speed corepond in a frenet frame
 const double VEHICLE_RADIUS = 1.5; // model vehicle as circle to simplify collision detection
 
-
 // weights of cost functions
 const map<string, double> WEIGHTED_COST_FUNCTIONS = {
 	{"time_diff_cost",    1.0},
@@ -217,26 +216,37 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )){
 		prev_wp++;
 	}
+
+	int wp0 = (prev_wp-1)%maps_x.size();
 	int wp2 = (prev_wp+1)%maps_x.size();
+	int wp3 = (prev_wp+2)%maps_x.size();
+
 
 	std::vector<double> X, Y;
 
-	// int = ? where ? represent number of waypoints before the prev_wp
-    for(int i = 3; i > 0; i--){
-    	double wp = (prev_wp-i)%maps_x.size();
-    	X.push_back(maps_x[wp]);
-    	Y.push_back(maps_y[wp]);    	
-    }
+	double d_from_wp = 0.5;
 
-    X.push_back(maps_x[prev_wp]);
-    Y.push_back(maps_y[prev_wp]);
+	double angle_0 = atan2((maps_y[wp2]-maps_y[wp0]),(maps_x[wp2]-maps_x[wp0]));
+	double angle_1 = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+	double angle_2 = atan2((maps_y[wp3]-maps_y[wp2]),(maps_x[wp3]-maps_x[wp2]));
 
-    // i > ? where ? represent number of waypoints next to prev_xp
-    for(int i = 1 ; i <= 3; i++){
-    	double wp = (prev_wp+i)%maps_x.size();
-    	X.push_back(maps_x[wp]);
-    	Y.push_back(maps_y[wp]);
-    }
+
+	X.push_back(maps_x[prev_wp] - d_from_wp*cos(angle_0));
+	Y.push_back(maps_y[prev_wp] - d_from_wp*sin(angle_0));
+	//X.push_back(maps_x[prev_wp]);
+    //Y.push_back(maps_y[prev_wp]);
+	X.push_back(maps_x[prev_wp] + d_from_wp*cos(angle_1));
+	Y.push_back(maps_y[prev_wp] + d_from_wp*sin(angle_1));
+
+
+	X.push_back(maps_x[wp2] - d_from_wp*cos(angle_1));
+	Y.push_back(maps_y[wp2] - d_from_wp*sin(angle_1));
+	//X.push_back(maps_x[wp2]);
+    //Y.push_back(maps_y[wp2]);
+	X.push_back(maps_x[wp2] + d_from_wp*cos(angle_2));
+	Y.push_back(maps_y[wp2] + d_from_wp*sin(angle_2));
+
+
 
     // transform from global cordinates to local to the previous waypoint
     double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
@@ -263,9 +273,9 @@ vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const 
 	double x_1 = seg_s;
 	while(integral > seg_s){
 		integral = arc_length(f, 0, x_1);
-		x_1 -= 0.01;
+		x_1 -= 0.00001;
 	}
-	x_1 += 0.01;
+	x_1 += 0.00001;
 
 	//(x_1,y_1) is the point in local coordinates of the s frenet frame
 	double y_1 = f(x_1);
@@ -1242,7 +1252,7 @@ int main() {
           	double d_dot = 0;
           	double s_ddot = 0;
           	double d_ddot = 0;
-          	if(t_deriv > 0){
+          	if(index != 0){
           		s = prev_s[index];
           		d = prev_d[index];
           		s_dot = poly_deriv_eval(s_coeff, 1, t_deriv);
@@ -1254,10 +1264,15 @@ int main() {
           	vector<double> s_start = {s, s_dot, s_ddot};
           	vector<double> d_start = {d, d_dot, d_ddot};
 
+          	cout << "s_dot : " << s_dot << endl;
 
-          	double T = 2;
+          	double T = 10;
+          	double dist = 100;
+          	//if(s_dot >= 10){
+          	//	T = dist/s_dot;
+          	//}
 
-          	vector <double> s_end = {s+40, 8, 0};
+          	vector <double> s_end = {s+dist, 10, 0};
           	vector <double> d_end = {6, 0, 0};
 
 
@@ -1268,21 +1283,33 @@ int main() {
           	d_coeff = trajectory_to_execute.d;
 
           	// Prepare to send values to the simulator
-          	double t = t_i;
-          	while(t <= T + 0.01){
-          		double s = poly_eval(trajectory_to_execute.s, t);
-          		double d = poly_eval(trajectory_to_execute.d, t);
+          	if (prev_size == 0){
+				double t = t_i;
+	          	while(t <= T + 0.01){
+	          		double s = poly_eval(trajectory_to_execute.s, t);
+	          		double d = poly_eval(trajectory_to_execute.d, t);
 
-          		prev_s.push_back(s);
-          		prev_d.push_back(d);
-          		//cout << s << " , " << d << endl;	
-          		vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          		
-          		next_x_vals.push_back(XY[0]);
-		        next_y_vals.push_back(XY[1]);
+	          		prev_s.push_back(s);
+	          		prev_d.push_back(d);
+	          		//cout << s << " , " << d << endl;	
+	          		vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 
-		        t += t_i;
+	          		next_x_vals.push_back(XY[0]);
+	          		next_y_vals.push_back(XY[1]);
+
+			        t += t_i;
+	          	}
+
+
+          	}else{
+          		for(int i = 0; i < prev_size; i++){
+          			next_x_vals.push_back(previous_path_x[i]);
+          			next_y_vals.push_back(previous_path_y[i]);
+          		}
+
           	}
+
+          	real_prev_size = next_x_vals.size();
 
           	
 
