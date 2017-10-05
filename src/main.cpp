@@ -45,6 +45,9 @@ const map<string, double> WEIGHTED_COST_FUNCTIONS = {
 
 // END: C O N S T A N T S definition
 
+//This splines will be used in getXY() function
+tk::spline f_0, f_1, f_2, f_3;
+
 
 // for convenience
 using json = nlohmann::json;
@@ -167,31 +170,13 @@ vector<double> getFrenet(double x, double y, double theta, const vector<double> 
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-vector<double> getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
-{
-	int prev_wp = -1;
-
-	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) ))
-	{
-		prev_wp++;
-	}
-
-	int wp2 = (prev_wp+1)%maps_x.size();
-
-	double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
-	// the x,y,s along the segment
-	double seg_s = (s-maps_s[prev_wp]);
-
-	double seg_x = maps_x[prev_wp]+seg_s*cos(heading);
-	double seg_y = maps_y[prev_wp]+seg_s*sin(heading);
-
-	double perp_heading = heading-pi()/2;
-
-	double x = seg_x + d*cos(perp_heading);
-	double y = seg_y + d*sin(perp_heading);
+// Idea comes from: https://discussions.udacity.com/t/getxy-using-splines-distance-errors/352364/2?u=galvez
+vector<double> getXY(double s, double d)
+{	
+	double x = f_0(s) + d*f_1(s);
+	double y = f_2(s) + d*f_3(s);
 
 	return {x,y};
-
 }
 
 
@@ -205,99 +190,6 @@ double arc_length(Function& f, double a, double b)
 	double d = (b-a)/6.0;
 
 	return d * (f.ds(a) + 4.0*f.ds(c) + f.ds(b));
-}
-
-
-// Transform from Frenet s,d coordinates to Cartesian x,y with higer accuracy than getXY
-vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
-{
-
-	int prev_wp = -1;
-	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )){
-		prev_wp++;
-	}
-
-	int wp0 = (prev_wp-1)%maps_x.size();
-	int wp2 = (prev_wp+1)%maps_x.size();
-	int wp3 = (prev_wp+2)%maps_x.size();
-
-
-	std::vector<double> X, Y;
-
-	double d_from_wp = 0.5;
-
-	double angle_0 = atan2((maps_y[wp2]-maps_y[wp0]),(maps_x[wp2]-maps_x[wp0]));
-	double angle_1 = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
-	double angle_2 = atan2((maps_y[wp3]-maps_y[wp2]),(maps_x[wp3]-maps_x[wp2]));
-
-
-	X.push_back(maps_x[prev_wp] - d_from_wp*cos(angle_0));
-	Y.push_back(maps_y[prev_wp] - d_from_wp*sin(angle_0));
-	//X.push_back(maps_x[prev_wp]);
-    //Y.push_back(maps_y[prev_wp]);
-	X.push_back(maps_x[prev_wp] + d_from_wp*cos(angle_1));
-	Y.push_back(maps_y[prev_wp] + d_from_wp*sin(angle_1));
-
-
-	X.push_back(maps_x[wp2] - d_from_wp*cos(angle_1));
-	Y.push_back(maps_y[wp2] - d_from_wp*sin(angle_1));
-	//X.push_back(maps_x[wp2]);
-    //Y.push_back(maps_y[wp2]);
-	X.push_back(maps_x[wp2] + d_from_wp*cos(angle_2));
-	Y.push_back(maps_y[wp2] + d_from_wp*sin(angle_2));
-
-
-
-    // transform from global cordinates to local to the previous waypoint
-    double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
-    for (int i = 0 ; i < X.size() ; i++){
-            //traslation transform
-            double x_i = X[i] - maps_x[prev_wp];
-            double y_i = Y[i] - maps_y[prev_wp];
-            //rotation transform
-            X[i] =  x_i*cos(heading) + y_i*sin(heading);
-            Y[i] = -x_i*sin(heading) + y_i*cos(heading);
-	}
-
-	// create a spline
-	tk::spline f;
-
-	// set (X,Y) points to the spline
-	f.set_points(X, Y);
-
-	// the arc length we want to find is:
-	double seg_s = s - maps_s[prev_wp];
-
-	// integrate to calculate the local coordinate x
-	double integral = 100;
-	double x_1 = seg_s;
-	while(integral > seg_s){
-		integral = arc_length(f, 0, x_1);
-		x_1 -= 0.00001;
-	}
-	x_1 += 0.00001;
-
-	//(x_1,y_1) is the point in local coordinates of the s frenet frame
-	double y_1 = f(x_1);
-
-	//calculate the angle of the normal vector (to the right side) at point (x_1,y_1)
-	double m = f.deriv(1,x_1);
-	double theta = atan(-1.0/m);
-	if(m < 0) theta *= -1;
-
-	// calculate the (x_2,y_2) point that is equivalen to (s,d) in local frame
-	double x_2 = d * cos(theta) + x_1;
-	double y_2 = d * sin(theta) + y_1;
-
-	// rotate back to normal after rotating it earlier
-    //rotation transform
-    double x =  x_2*cos(-heading) + y_2*sin(-heading);
-    double y = -x_2*sin(-heading) + y_2*cos(-heading);
-    //traslation transform
-    x += maps_x[prev_wp];
-   	y += maps_y[prev_wp];
-
-	return {x,y};
 }
 
 
@@ -882,6 +774,12 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
+  // set (X,Y) points to the splines that will be used in getXY() function
+  f_0.set_points(map_waypoints_s, map_waypoints_x);
+  f_1.set_points(map_waypoints_s, map_waypoints_dx);
+  f_2.set_points(map_waypoints_s, map_waypoints_y);
+  f_3.set_points(map_waypoints_s, map_waypoints_dy);
+
   // start in lane 1
   int lane = 1;
 
@@ -1292,7 +1190,7 @@ int main() {
 	          		prev_s.push_back(s);
 	          		prev_d.push_back(d);
 	          		//cout << s << " , " << d << endl;	
-	          		vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+	          		vector<double> XY = getXY(s, d);
 
 	          		next_x_vals.push_back(XY[0]);
 	          		next_y_vals.push_back(XY[1]);
