@@ -409,17 +409,19 @@ double logistic(double x){
 /*
     Calculates the closest distance a particular vehicle during a trajectory.
 */
-double nearest_approach(test_case traj, vector<double> vehicle){
+double nearest_approach(test_case traj, Vehicle vehicle){
 	
 	double t, cur_s, cur_d, targ_s, targ_d, dist;
+	vector<double> targ;
 	double closest = 99999;
 
 	for(int i = 0; i < 100; i++){
 		t = (float)i / 100 * traj.t;
 		cur_s = poly_eval(traj.s, t);
 		cur_d = poly_eval(traj.d, t);
-		targ_s = vehicle[5];
-		targ_d = vehicle[6];
+		targ = vehicle.state_in(t);
+		targ_s = targ[0];
+		targ_d = targ[3];
 		dist = distance(cur_s, cur_d, targ_s, targ_d);
 		if(dist < closest){
 			closest = dist;
@@ -432,12 +434,10 @@ double nearest_approach(test_case traj, vector<double> vehicle){
 /*
     Calculates the closest distance to any vehicle during a trajectory.
 */
-double nearest_approach_to_any_vehicle(test_case traj, vector<vector<double>> vehicles){
-	vector<double> v;
+double nearest_approach_to_any_vehicle(test_case traj, vector<Vehicle> vehicles){
 	double d, closest = 99999.0;
 
-	for(int i = 0; i < vehicles.size(); i++){
-		v = vehicles[i];
+	for(const auto& v: vehicles){
 		d = nearest_approach(traj, v);
 		if(d < closest){
 			closest = d;
@@ -456,7 +456,7 @@ double nearest_approach_to_any_vehicle(test_case traj, vector<vector<double>> ve
     Penalizes trajectories that span a duration which is longer or 
     shorter than the duration requested.
 */
-double time_diff_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double time_diff_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double t = traj.t;
 	double cost = logistic(double(abs(t-T)) / T);
 
@@ -468,7 +468,7 @@ double time_diff_cost(test_case traj, test_case target, double T, vector<vector<
     Penalizes trajectories whose s coordinate (and derivatives) 
     differ from the goal.
 */
-double s_diff_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double s_diff_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 
 	double cost = 0.0;
 
@@ -491,7 +491,7 @@ double s_diff_cost(test_case traj, test_case target, double T, vector<vector<dou
 	Penalizes trajectories whose d coordinate (and derivatives) 
     differ from the goal.
 */
-double d_diff_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double d_diff_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double cost = 0.0;
 
 	double d = poly_eval(traj.d, traj.t);
@@ -512,7 +512,7 @@ double d_diff_cost(test_case traj, test_case target, double T, vector<vector<dou
 /*
     Binary cost function which penalizes collisions.
 */
-double collision_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double collision_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double nearest = nearest_approach_to_any_vehicle(traj, predictions);
 
 	if(nearest < 2*VEHICLE_RADIUS)
@@ -525,7 +525,7 @@ double collision_cost(test_case traj, test_case target, double T, vector<vector<
 /*
     Penalizes getting close to other vehicles.
 */
-double buffer_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double buffer_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double nearest = nearest_approach_to_any_vehicle(traj, predictions);
     
     return logistic(2*VEHICLE_RADIUS / nearest);
@@ -535,7 +535,7 @@ double buffer_cost(test_case traj, test_case target, double T, vector<vector<dou
 /*
     Penalizes getting out of the drivable area at any point of the trajectory
 */
-double stays_on_road_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double stays_on_road_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double t, d;
 	double cost = 0.0;
 
@@ -554,7 +554,7 @@ double stays_on_road_cost(test_case traj, test_case target, double T, vector<vec
 /*
     Penalizes exceed the speed limit
 */
-double exceeds_speed_limit_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double exceeds_speed_limit_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double t, s_dot, d_dot, speed, max_speed = 0.0;
 	double cost = 0.0;
 
@@ -580,12 +580,12 @@ double exceeds_speed_limit_cost(test_case traj, test_case target, double T, vect
 /*
     Rewards high average speeds.
 */
-double efficiency_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double efficiency_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	//TODO
 	return 0.0;
 }
 
-double total_accel_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double total_accel_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double t, acc, total_acc = 0.0;
 	double dt = double(T) / 100.0;
 
@@ -601,7 +601,7 @@ double total_accel_cost(test_case traj, test_case target, double T, vector<vecto
 
 }
 
-double max_accel_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double max_accel_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double acc, t, max_acc = 0;
 	double dt = double(T) / 100.0;
 
@@ -619,7 +619,7 @@ double max_accel_cost(test_case traj, test_case target, double T, vector<vector<
 		return 0.0;
 }
 
-double max_jerk_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double max_jerk_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 
 	double jerk, t, max_jerk = 0;
 	double dt = double(T) / 100.0;
@@ -638,7 +638,7 @@ double max_jerk_cost(test_case traj, test_case target, double T, vector<vector<d
 		return 0.0;
 }
 
-double total_jerk_cost(test_case traj, test_case target, double T, vector<vector<double>> predictions){
+double total_jerk_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 
 	double t, jerk, total_jerk = 0.0;
 	double dt = double(T) / 100.0;
@@ -656,7 +656,7 @@ double total_jerk_cost(test_case traj, test_case target, double T, vector<vector
 
 // Reflection of cost functions. 
 // Idea from https://stackoverflow.com/questions/19473313/how-to-call-a-function-by-its-name-stdstring-in-c
-typedef double (*FnPtr)(test_case, test_case, double, vector<vector<double>>);
+typedef double (*FnPtr)(test_case, test_case, double, vector<Vehicle>);
 
 map<string, FnPtr> cf = {
 	{"time_diff_cost",    time_diff_cost},
@@ -672,7 +672,7 @@ map<string, FnPtr> cf = {
 };
 
 
-double calculate_cost(test_case trajectory, test_case target, double goal_t, vector<vector<double>> predictions, bool verbose){
+double calculate_cost(test_case trajectory, test_case target, double goal_t, vector<Vehicle> predictions, bool verbose){
 	double cost = 0.0;
 
 	for (auto& x: WEIGHTED_COST_FUNCTIONS) {
@@ -688,7 +688,7 @@ double calculate_cost(test_case trajectory, test_case target, double goal_t, vec
 	return cost;
 }
 
-test_case min_trajectory_cost(vector<test_case> trajectories, test_case target, double T, vector<vector<double>> predictions){
+test_case min_trajectory_cost(vector<test_case> trajectories, test_case target, double T, vector<Vehicle> predictions){
 	double cost, min_cost = 99999;
 	test_case tr, best;
 
@@ -733,7 +733,7 @@ test_case min_trajectory_cost(vector<test_case> trajectories, test_case target, 
      best_d gives coefficients for d(t) and best_t gives duration associated w/ 
      this trajectory.
 */
-test_case PTG(vector<double> start_s, vector<double> start_d, vector<double> goal_s, vector<double> goal_d, double T, vector<vector<double>> predictions){
+test_case PTG(vector<double> start_s, vector<double> start_d, vector<double> goal_s, vector<double> goal_d, double T, vector<Vehicle> predictions){
 	
 	// generate alternative goals
 	vector<test_case> all_goals;
@@ -1231,9 +1231,9 @@ int main() {
           		Vehicle v(car);
           		predictions.push_back(v);
           	}
-          	
+
           	// Trayectory planner
-          	test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, sensor_fusion);
+          	test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
 
           	// Prepare to send values to the controler of the simulator
 			double t = t_i;
