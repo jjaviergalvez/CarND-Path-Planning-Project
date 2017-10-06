@@ -29,6 +29,10 @@ const double EXPECTED_ACC_IN_ONE_SEC = 1; // m/s in frenet frame
 const double SPEED_LIMIT = 30.0; //for the moment this speed corepond in a frenet frame
 const double VEHICLE_RADIUS = 1.5; // model vehicle as circle to simplify collision detection
 
+//Calculate splines 
+tk::spline f_0, f_1, f_2, f_3;
+
+
 // weights of cost functions
 const map<string, double> WEIGHTED_COST_FUNCTIONS = {
 	{"time_diff_cost",    1.0},
@@ -44,9 +48,6 @@ const map<string, double> WEIGHTED_COST_FUNCTIONS = {
 };
 
 // END: C O N S T A N T S definition
-
-//This splines will be used in getXY() function
-tk::spline f_0, f_1, f_2, f_3;
 
 
 // for convenience
@@ -170,55 +171,32 @@ vector<double> getFrenet(double x, double y, double theta, const vector<double> 
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-// Idea comes from: https://discussions.udacity.com/t/getxy-using-splines-distance-errors/352364/2?u=galvez
-vector<double> getXY(double s, double d)
-{	
-	double x = f_0(s) + d*f_1(s);
-	double y = f_2(s) + d*f_3(s);
+vector<double> getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
+{
+	int prev_wp = -1;
+
+	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) ))
+	{
+		prev_wp++;
+	}
+
+	int wp2 = (prev_wp+1)%maps_x.size();
+
+	double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+	// the x,y,s along the segment
+	double seg_s = (s-maps_s[prev_wp]);
+
+	double seg_x = maps_x[prev_wp]+seg_s*cos(heading);
+	double seg_y = maps_y[prev_wp]+seg_s*sin(heading);
+
+	double perp_heading = heading-pi()/2;
+
+	double x = seg_x + d*cos(perp_heading);
+	double y = seg_y + d*sin(perp_heading);
 
 	return {x,y};
+
 }
-
-
-/*
-	Helper class. Non-ego vehicles move w/ constant acceleration
-*/
-class Vehicle {
-    
-public:
-
-	vector<double> _start_state;
-
-	//	Constructor
-	Vehicle(double vx, double vy, double s, double d){
-		double vel = sqrt(vx*vx + vy*vy);
-		_start_state = { s, vel/2, 0,
-						 d,     0, 0 };
-
-	}
-
-	// Return the state at time t
-	vector<double> state_in(double t){
-		auto ib = _start_state.begin();
-		auto ie = _start_state.end();
-
-		vector<double> s(ib, ib+3);
-		vector<double> d(ie-3, ie);
-
-		vector<double> state = {
-	            s[0] + (s[1] * t) + s[2] * t*t / 2.0,
-	            s[1] + s[2] * t,
-	            s[2],
-	            d[0] + (d[1] * t) + d[2] * t*t / 2.0,
-	            d[1] + d[2] * t,
-	            d[2],
-        };
-
-		return state;
-	}
-
-};
-
 
 
 // Simpson's rule implementation; ingreal a function f(x) over the interval [a,b]
@@ -231,6 +209,305 @@ double arc_length(Function& f, double a, double b)
 	double d = (b-a)/6.0;
 
 	return d * (f.ds(a) + 4.0*f.ds(c) + f.ds(b));
+}
+
+
+int last_prev_wp = 4;
+double last_x = 0;
+double last_y = 0;
+// Transform from Frenet s,d coordinates to Cartesian x,y with higer accuracy than getXY
+vector<double> NEWNEW_getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
+{
+	int prev_wp = -1;
+	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )){
+		prev_wp++;
+	}
+
+	int wp00 = (prev_wp-2)%maps_x.size();
+	int wp0 = (prev_wp-1)%maps_x.size();
+	int wp2 = (prev_wp+1)%maps_x.size();
+	int wp3 = (prev_wp+2)%maps_x.size();
+
+
+	std::vector<double> X, Y;
+
+	double d_from_wp = 1;
+
+	double angle_00 = atan2((maps_y[wp0]-maps_y[wp00]),(maps_x[wp0]-maps_x[wp00]));
+	double angle_0 = atan2((maps_y[wp2]-maps_y[wp0]),(maps_x[wp2]-maps_x[wp0]));
+	double angle_1 = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+	double angle_2 = atan2((maps_y[wp3]-maps_y[wp2]),(maps_x[wp3]-maps_x[wp2]));
+
+	
+	//X.push_back(maps_x[wp0] - d_from_wp*cos(angle_00));
+	//Y.push_back(maps_y[wp0] - d_from_wp*sin(angle_00));
+	//X.push_back(maps_x[wp0]);
+    //Y.push_back(maps_y[wp0]);
+	//X.push_back(maps_x[wp0] + d_from_wp*cos(angle_0));
+	//Y.push_back(maps_y[wp0] + d_from_wp*sin(angle_0));
+	cout<< "prev_wp = " << prev_wp << " last_prev_wp = " << last_prev_wp << endl;
+	//if(last_prev_wp != prev_wp){
+	//	X.push_back(maps_x[prev_wp] - d_from_wp*cos(angle_0));
+	//	Y.push_back(maps_y[prev_wp] - d_from_wp*sin(angle_0));
+	//}
+	//else{
+		X.push_back(last_x);
+		Y.push_back(last_y);
+		
+	//}
+	//X.push_back(maps_x[prev_wp]);
+    //Y.push_back(maps_y[prev_wp]);
+	X.push_back(maps_x[prev_wp] + d_from_wp*cos(angle_1));
+	Y.push_back(maps_y[prev_wp] + d_from_wp*sin(angle_1));
+
+
+	X.push_back(maps_x[wp2] - d_from_wp*cos(angle_1));
+	Y.push_back(maps_y[wp2] - d_from_wp*sin(angle_1));
+	//X.push_back(maps_x[wp2]);
+    //Y.push_back(maps_y[wp2]);
+	X.push_back(maps_x[wp2] + d_from_wp*cos(angle_2));
+	Y.push_back(maps_y[wp2] + d_from_wp*sin(angle_2));
+
+
+
+    // transform from global cordinates to local to the previous waypoint
+    double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+    for (int i = 0 ; i < X.size() ; i++){
+            //traslation transform
+            double x_i = X[i] - maps_x[prev_wp];
+            double y_i = Y[i] - maps_y[prev_wp];
+            //rotation transform
+            X[i] =  x_i*cos(heading) + y_i*sin(heading);
+            Y[i] = -x_i*sin(heading) + y_i*cos(heading);
+	}
+
+	// create a spline
+	tk::spline f;
+
+	// set (X,Y) points to the spline
+	f.set_points(X, Y);
+
+	// the arc length we want to find is:
+	double seg_s = s - maps_s[prev_wp];
+
+	// integrate to calculate the local coordinate x
+	double integral = 100;
+	double x_1 = seg_s;
+	while(integral > seg_s){
+		integral = arc_length(f, 0, x_1);
+		x_1 -= 0.00001;
+	}
+	x_1 += 0.00001;
+
+	//(x_1,y_1) is the point in local coordinates of the s frenet frame
+	double y_1 = f(x_1);
+
+	//calculate the angle of the normal vector (to the right side) at point (x_1,y_1)
+	double m = f.deriv(1,x_1);
+	double theta = atan(-1.0/m);
+	if(m < 0) theta *= -1;
+
+	// calculate the (x_2,y_2) point that is equivalen to (s,d) in local frame
+	double x_2 = d * cos(theta) + x_1;
+	double y_2 = d * sin(theta) + y_1;
+
+	// rotate back to normal after rotating it earlier
+    //rotation transform
+    double x =  x_2*cos(-heading) + y_2*sin(-heading);
+    double y = -x_2*sin(-heading) + y_2*cos(-heading);
+    //traslation transform
+    x += maps_x[prev_wp];
+   	y += maps_y[prev_wp];
+
+
+   	last_prev_wp = prev_wp;
+   	//last_x = x;
+   	//last_y = y;
+
+	return {x,y};
+}
+
+// Transform from Frenet s,d coordinates to Cartesian x,y with higer accuracy than getXY
+vector<double> NEW_getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
+{
+
+	int prev_wp = -1;
+	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )){
+		prev_wp++;
+	}
+
+	int wp0 = (prev_wp-1)%maps_x.size();
+	int wp2 = (prev_wp+1)%maps_x.size();
+	int wp3 = (prev_wp+2)%maps_x.size();
+
+
+	std::vector<double> X, Y;
+
+	double d_from_wp = 0.5;
+
+	double angle_0 = atan2((maps_y[wp2]-maps_y[wp0]),(maps_x[wp2]-maps_x[wp0]));
+	double angle_1 = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+	double angle_2 = atan2((maps_y[wp3]-maps_y[wp2]),(maps_x[wp3]-maps_x[wp2]));
+
+
+	X.push_back(maps_x[prev_wp] - d_from_wp*cos(angle_0));
+	Y.push_back(maps_y[prev_wp] - d_from_wp*sin(angle_0));
+	//X.push_back(maps_x[prev_wp]);
+    //Y.push_back(maps_y[prev_wp]);
+	X.push_back(maps_x[prev_wp] + d_from_wp*cos(angle_1));
+	Y.push_back(maps_y[prev_wp] + d_from_wp*sin(angle_1));
+
+
+	X.push_back(maps_x[wp2] - d_from_wp*cos(angle_1));
+	Y.push_back(maps_y[wp2] - d_from_wp*sin(angle_1));
+	//X.push_back(maps_x[wp2]);
+    //Y.push_back(maps_y[wp2]);
+	X.push_back(maps_x[wp2] + d_from_wp*cos(angle_2));
+	Y.push_back(maps_y[wp2] + d_from_wp*sin(angle_2));
+
+
+
+    // transform from global cordinates to local to the previous waypoint
+    double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+    for (int i = 0 ; i < X.size() ; i++){
+            //traslation transform
+            double x_i = X[i] - maps_x[prev_wp];
+            double y_i = Y[i] - maps_y[prev_wp];
+            //rotation transform
+            X[i] =  x_i*cos(heading) + y_i*sin(heading);
+            Y[i] = -x_i*sin(heading) + y_i*cos(heading);
+	}
+
+	// create a spline
+	tk::spline f;
+
+	// set (X,Y) points to the spline
+	f.set_points(X, Y);
+
+	// the arc length we want to find is:
+	double seg_s = s - maps_s[prev_wp];
+
+	// integrate to calculate the local coordinate x
+	double integral = 100;
+	double x_1 = seg_s;
+	while(integral > seg_s){
+		integral = arc_length(f, 0, x_1);
+		x_1 -= 0.00001;
+	}
+	x_1 += 0.00001;
+
+	//(x_1,y_1) is the point in local coordinates of the s frenet frame
+	double y_1 = f(x_1);
+
+	//calculate the angle of the normal vector (to the right side) at point (x_1,y_1)
+	double m = f.deriv(1,x_1);
+	double theta = atan(-1.0/m);
+	if(m < 0) theta *= -1;
+
+	// calculate the (x_2,y_2) point that is equivalen to (s,d) in local frame
+	double x_2 = d * cos(theta) + x_1;
+	double y_2 = d * sin(theta) + y_1;
+
+	// rotate back to normal after rotating it earlier
+    //rotation transform
+    double x =  x_2*cos(-heading) + y_2*sin(-heading);
+    double y = -x_2*sin(-heading) + y_2*cos(-heading);
+    //traslation transform
+    x += maps_x[prev_wp];
+   	y += maps_y[prev_wp];
+
+	return {x,y};
+}
+
+// Transform from Frenet s,d coordinates to Cartesian x,y with higer accuracy than getXY
+vector<double> mentor_getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
+{
+
+	double x = f_0(s) + d*f_1(s);
+	double y = f_2(s) + d*f_3(s);
+
+	return {x,y};
+}
+
+// Transform from Frenet s,d coordinates to Cartesian x,y with higer accuracy than getXY
+vector<double> my_getXY(double s, double d, const vector<double> &maps_s, const vector<double> &maps_x, const vector<double> &maps_y)
+{
+
+	int prev_wp = -1;
+	while(s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1) )){
+		prev_wp++;
+	}
+	int wp2 = (prev_wp+1)%maps_x.size();
+
+	std::vector<double> X, Y;
+
+	// int = ? where ? represent number of waypoints before the prev_wp
+    for(int i = 2; i > 0; i--){
+    	double wp = (prev_wp-i)%maps_x.size();
+    	X.push_back(maps_x[wp]);
+    	Y.push_back(maps_y[wp]);    	
+    }
+
+    X.push_back(maps_x[prev_wp]);
+    Y.push_back(maps_y[prev_wp]);
+
+    // i > ? where ? represent number of waypoints next to prev_xp
+    for(int i = 1 ; i <= 2; i++){
+    	double wp = (prev_wp+i)%maps_x.size();
+    	X.push_back(maps_x[wp]);
+    	Y.push_back(maps_y[wp]);
+    }
+
+    // transform from global cordinates to local to the previous waypoint
+    double heading = atan2((maps_y[wp2]-maps_y[prev_wp]),(maps_x[wp2]-maps_x[prev_wp]));
+    for (int i = 0 ; i < X.size() ; i++){
+            //traslation transform
+            double x_i = X[i] - maps_x[prev_wp];
+            double y_i = Y[i] - maps_y[prev_wp];
+            //rotation transform
+            X[i] =  x_i*cos(heading) + y_i*sin(heading);
+            Y[i] = -x_i*sin(heading) + y_i*cos(heading);
+	}
+
+	// create a spline
+	tk::spline f;
+
+	// set (X,Y) points to the spline
+	f.set_points(X, Y);
+
+	// the arc length we want to find is:
+	double seg_s = s - maps_s[prev_wp];
+
+	// integrate to calculate the local coordinate x
+	double integral = 100;
+	double x_1 = seg_s;
+	while(integral > seg_s){
+		integral = arc_length(f, 0, x_1);
+		x_1 -= 0.00001;
+	}
+	x_1 += 0.00001;
+
+	//(x_1,y_1) is the point in local coordinates of the s frenet frame
+	double y_1 = f(x_1);
+
+	//calculate the angle of the normal vector (to the right side) at point (x_1,y_1)
+	double m = f.deriv(1,x_1);
+	double theta = atan(-1.0/m);
+	if(m < 0) theta *= -1;
+
+	// calculate the (x_2,y_2) point that is equivalen to (s,d) in local frame
+	double x_2 = d * cos(theta) + x_1;
+	double y_2 = d * sin(theta) + y_1;
+
+	// rotate back to normal after rotating it earlier
+    //rotation transform
+    double x =  x_2*cos(-heading) + y_2*sin(-heading);
+    double y = -x_2*sin(-heading) + y_2*cos(-heading);
+    //traslation transform
+    x += maps_x[prev_wp];
+   	y += maps_y[prev_wp];
+
+	return {x,y};
 }
 
 
@@ -815,7 +1092,7 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  // set (X,Y) points to the splines that will be used in getXY() function
+  // set (X,Y) points to the spline
   f_0.set_points(map_waypoints_s, map_waypoints_x);
   f_1.set_points(map_waypoints_s, map_waypoints_dx);
   f_2.set_points(map_waypoints_s, map_waypoints_y);
@@ -827,13 +1104,13 @@ int main() {
   // Have a reference velocity to target
   double ref_vel = 30.0;
 
-  vector<double> prev_s_coeff;
-  vector<double> prev_d_coeff;
+  vector<double> s_coeff;
+  vector<double> d_coeff;
   vector<double> prev_s;
   vector<double> prev_d;
   int real_prev_size = 0;
 
-  h.onMessage([&prev_s,&prev_d,&real_prev_size,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&prev_s,&prev_d,&real_prev_size,&s_coeff,&d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -1177,11 +1454,10 @@ int main() {
 	        real_prev_size = next_x_vals.size();
 */
 
-          	// The time in sec that car takes to visit each control point
-          	double t_i = 0.02;
 
-          	// Number of points the car visited
-          	int index = real_prev_size - prev_size; 
+          	double t_i = 0.02; // time when the car move to the next point
+
+          	int index = real_prev_size - prev_size; // number of points the car visited
 
           	double t_deriv = t_i * index; // the time we gona use to estimate the actual vel and acc
 
@@ -1195,10 +1471,10 @@ int main() {
           	if(index != 0){
           		s = prev_s[index];
           		d = prev_d[index];
-          		s_dot = poly_deriv_eval(prev_s_coeff, 1, t_deriv);
-          		d_dot = poly_deriv_eval(prev_d_coeff, 1, t_deriv);
-          		s_ddot = poly_deriv_eval(prev_s_coeff, 2, t_deriv);
-          		d_ddot = poly_deriv_eval(prev_d_coeff, 2, t_deriv);
+          		s_dot = poly_deriv_eval(s_coeff, 1, t_deriv);
+          		d_dot = poly_deriv_eval(d_coeff, 1, t_deriv);
+          		s_ddot = poly_deriv_eval(s_coeff, 2, t_deriv);
+          		d_ddot = poly_deriv_eval(d_coeff, 2, t_deriv);
           	}
 
           	vector<double> s_start = {s, s_dot, s_ddot};
@@ -1206,40 +1482,55 @@ int main() {
 
           	cout << "s_dot : " << s_dot << endl;
 
-          	// Define end-state 
           	double T = 10;
           	double dist = 100;
           	//if(s_dot >= 10){
           	//	T = dist/s_dot;
           	//}
+
           	vector <double> s_end = {s+dist, 10, 0};
           	vector <double> d_end = {6, 0, 0};
 
 
-          	// Trayectory planner
           	test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, sensor_fusion);
 
-          	// Prepare to send values to the controler of the simulator
-			double t = t_i;
-          	while(t <= T + 0.01){
-          		double s = poly_eval(trajectory_to_execute.s, t);
-          		double d = poly_eval(trajectory_to_execute.d, t);
 
-          		prev_s.push_back(s);
-          		prev_d.push_back(d);
-          		//cout << s << " , " << d << endl;	
-          		vector<double> XY = getXY(s, d);
+          	s_coeff = trajectory_to_execute.s;
+          	d_coeff = trajectory_to_execute.d;
 
-          		next_x_vals.push_back(XY[0]);
-          		next_y_vals.push_back(XY[1]);
+          	// Prepare to send values to the simulator
+          	if (prev_size == 0){
+				double t = t_i;
+				last_x = car_x;
+				last_y = car_y;
+	          	while(t <= T + 0.01){
+	          		double s = poly_eval(trajectory_to_execute.s, t);
+	          		double d = poly_eval(trajectory_to_execute.d, t);
 
-		        t += t_i;
+	          		prev_s.push_back(s);
+	          		prev_d.push_back(d);
+	          		//cout << s << " , " << d << endl;	
+	          		vector<double> XY = mentor_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+	          		next_x_vals.push_back(XY[0]);
+	          		next_y_vals.push_back(XY[1]);
+
+			        t += t_i;
+	          	}
+
+
+          	}else{
+          		for(int i = 0; i < prev_size; i++){
+          			next_x_vals.push_back(previous_path_x[i]);
+          			next_y_vals.push_back(previous_path_y[i]);
+          		}
+
           	}
 
-          	// Save some last variables sent
           	real_prev_size = next_x_vals.size();
-          	prev_s_coeff = trajectory_to_execute.s;
-          	prev_d_coeff = trajectory_to_execute.d;
+
+          	
+
 
 
 		    // TODO END
