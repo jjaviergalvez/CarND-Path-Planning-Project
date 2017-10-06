@@ -189,8 +189,16 @@ public:
 
 	vector<double> _start_state;
 
+	int _id;
+
 	//	Constructor
-	Vehicle(double vx, double vy, double s, double d){
+	Vehicle(vector<double> car){
+		_id = car[0];
+		double vx = car[3];
+		double vy = car[4];
+		double s = car[5];
+		double d = car[6];
+		
 		double vel = sqrt(vx*vx + vy*vy);
 		_start_state = { s, vel/2, 0,
 						 d,     0, 0 };
