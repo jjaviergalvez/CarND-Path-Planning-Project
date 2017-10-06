@@ -1224,6 +1224,14 @@ int main() {
           	vector <double> d_end = {6, 0, 0};
 
 
+          	// Make predictions base on sensor fusion data
+          	vector<Vehicle> predictions;
+          	for(int i = 0; i < sensor_fusion.size(); i++){
+          		vector<double> car = sensor_fusion[i];
+          		Vehicle v(car);
+          		predictions.push_back(v);
+          	}
+          	
           	// Trayectory planner
           	test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, sensor_fusion);
 
