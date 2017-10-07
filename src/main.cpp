@@ -18,6 +18,8 @@ using Eigen::VectorXd;
 
 // BEGIN: C O N S T A N T S definition
 
+const double SPEED_FACTOR = 0.45; // To transform from MPH in cartesian coordinate to m/s in Frenet
+
 const int N_SAMPLES = 10;
 const vector<double> SIGMA_S = {10.0, 4.0, 2.0}; // s, s_dot, s_double_dot
 const vector<double> SIGMA_D = {1.0, 1.0, 1.0};
@@ -26,21 +28,23 @@ const double MAX_JERK = 10.0; // m/s/s/s
 const double EXPECTED_JERK_IN_ONE_SEC = 2; // m/s/s
 const double MAX_ACCEL = 10.0; // m/s/s
 const double EXPECTED_ACC_IN_ONE_SEC = 1; // m/s in frenet frame
-const double SPEED_LIMIT = 30.0; //for the moment this speed corepond in a frenet frame
+const double SPEED_LIMIT = 49.5 * SPEED_FACTOR; //for the moment this speed corepond in a frenet frame
 const double VEHICLE_RADIUS = 1.5; // model vehicle as circle to simplify collision detection
 
 // weights of cost functions
 const map<string, double> WEIGHTED_COST_FUNCTIONS = {
-	{"time_diff_cost",    1.0},
-    {"s_diff_cost",       1.0},
-    {"d_diff_cost",       1.0},
-    {"efficiency_cost",   1.0},
-    {"max_jerk_cost",     1.0},
-    {"total_jerk_cost",   1.0},
-    {"collision_cost",    1.0},
-    {"buffer_cost",       1.0},
-    {"max_accel_cost",    1.0},
-    {"total_accel_cost",  1.0}
+	{"exceeds_speed_limit_cost", 	1.0},
+	{"negative_speed_cost", 		10.0},
+	{"time_diff_cost",    			1.0},
+    {"s_diff_cost",       			1.0},
+    {"d_diff_cost",       			1.0},
+    {"efficiency_cost",   			1.0},
+    {"max_jerk_cost",     			1.0},
+    {"total_jerk_cost",   			1.0},
+    {"collision_cost",    			1.0},
+    {"buffer_cost",       			1.0},
+    {"max_accel_cost",    			1.0},
+    {"total_accel_cost",  			1.0}
 };
 
 // END: C O N S T A N T S definition
@@ -199,7 +203,7 @@ public:
 		double s = car[5];
 		double d = car[6];
 		
-		double vel = sqrt(vx*vx + vy*vy);
+		double vel = sqrt(vx*vx + vy*vy)*SPEED_FACTOR;
 		_start_state = { s, vel/2, 0,
 						 d,     0, 0 };
 
@@ -578,6 +582,33 @@ double exceeds_speed_limit_cost(test_case traj, test_case target, double T, vect
 }
 
 /*
+    Penalizes negative velocity
+*/
+double negative_speed_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
+	double t, s_dot, d_dot, speed, max_speed = 0.0;
+	double cost = 0.0;
+	bool below_zero = false;
+
+	for(int i = 0; i < 100; i++){
+		t = (double)i / 100 * traj.t;
+		s_dot = poly_deriv_eval(traj.s, 1, t);
+		d_dot = poly_deriv_eval(traj.d, 1, t);
+
+		speed = sqrt(s_dot*s_dot + d_dot*d_dot);
+		
+		if (speed < 0)
+			below_zero = true;
+	}
+
+	if(below_zero)
+		return 1.0;
+	else
+		return 0.0;
+
+	return cost;
+}
+
+/*
     Rewards high average speeds.
 */
 double efficiency_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
@@ -659,16 +690,18 @@ double total_jerk_cost(test_case traj, test_case target, double T, vector<Vehicl
 typedef double (*FnPtr)(test_case, test_case, double, vector<Vehicle>);
 
 map<string, FnPtr> cf = {
-	{"time_diff_cost",    time_diff_cost},
-    {"s_diff_cost",       s_diff_cost},
-    {"d_diff_cost",       d_diff_cost},
-    {"efficiency_cost",   efficiency_cost},
-    {"max_jerk_cost",     max_jerk_cost},
-    {"total_jerk_cost",   total_jerk_cost},
-    {"collision_cost",    collision_cost},
-    {"buffer_cost",       buffer_cost},
-    {"max_accel_cost",    max_accel_cost},
-    {"total_accel_cost",  total_accel_cost}
+	{"exceeds_speed_limit_cost",  	exceeds_speed_limit_cost},
+	{"negative_speed_cost", 		negative_speed_cost},
+	{"time_diff_cost",    		  	time_diff_cost},
+    {"s_diff_cost",       		  	s_diff_cost},
+    {"d_diff_cost",					d_diff_cost},
+    {"efficiency_cost",   			efficiency_cost},
+    {"max_jerk_cost",     			max_jerk_cost},
+    {"total_jerk_cost",   			total_jerk_cost},
+    {"collision_cost",    			collision_cost},
+    {"buffer_cost",      	 		buffer_cost},
+    {"max_accel_cost",    			max_accel_cost},
+    {"total_accel_cost",  			total_accel_cost}
 };
 
 
@@ -833,7 +866,7 @@ int main() {
   double lane = 1;
 
   // Have a reference velocity to target
-  double ref_vel = 45*0.45;
+  double ref_vel = 49.0 * SPEED_FACTOR;
 
   vector<double> prev_s_coeff;
   vector<double> prev_d_coeff;
@@ -1303,20 +1336,20 @@ int main() {
 
           			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
           			// check s values greater than mine and s group
-          			if((check_car_s > car_s) && (check_car_s-car_s) < 5){
+          			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
           				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
           				// also flag to try to change lanes.
           				//ref_vel = 29.5; //mph
           				cout << "CAR IN FRONT" << endl;
           				too_close = true;
-          				ref_vel = 29.5 *0.45;
+          				ref_vel = check_speed;
           				//if(lane > 0){
           				//	lane = 0;
           				//}
 
           			}
           			else{
-          				ref_vel = 45.5 *0.45;
+          				//ref_vel = 49.0 * SPEED_FACTOR;
           			}
           		}
           	}
@@ -1362,12 +1395,14 @@ int main() {
           	vector<double> s_start = {s, s_dot, s_ddot};
 	        vector<double> d_start = {d, d_dot, d_ddot};
 
+	        cout << "ref_vel: " << ref_vel << endl;
+
 	        // Define end-state 
           	double dist, T, acc;
           	double diff_vel = ref_vel - s_dot;
 
           	// This is near to the cruise velocity
-          	if(0 <= diff_vel && diff_vel < 0.3){
+          	if(-0.3 < diff_vel && diff_vel < 0.3){
           		//cout <<"cruise control" << endl;
           		T = 1;
           		dist = ref_vel*T; //formula 3 with cero acc
@@ -1375,21 +1410,22 @@ int main() {
 
           	if(diff_vel >= 0.3){
           		//cout << "accelerate" << endl;
-          		acc = 1;
+          		acc = 1.5;
           		T = diff_vel/acc; //Formula 1
           		dist = s_dot*T + T*T*acc/2; //formula
           	}
 
-          	if(diff_vel < 0){
+          	if(diff_vel <= -0.3){
           		//cout << "DESASELERATE" << endl;
           		//ref_vel -= 10;
           		T = 1;
-          		dist = ref_vel*T; //formula 3 with cero acc
+          		//dist = ref_vel*T; //formula 3 with cero acc
+          		dist = (s_dot - 5)*T; //formula 3 with cero acc
           	}
 
       	
-      		cout << "?????????????" << endl;
-      		cout << "ref_vel: " << ref_vel << endl;
+      		//cout << "?????????????" << endl;
+      		//cout << "ref_vel: " << ref_vel << endl;
       		//cout << "T: " << T << endl;
       		//cout << "dist: " << dist << endl;
       		//cout << "s_dot: " << s_dot << endl;
