@@ -833,15 +833,18 @@ int main() {
   int lane = 1;
 
   // Have a reference velocity to target
-  double ref_vel = 30.0;
+  double ref_vel = 45*0.45;
 
   vector<double> prev_s_coeff;
   vector<double> prev_d_coeff;
   vector<double> prev_s;
   vector<double> prev_d;
   int real_prev_size = 0;
+  double last_s, last_d;
 
-  h.onMessage([&prev_s,&prev_d,&real_prev_size,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  double t = 0;
+
+  h.onMessage([&last_s,&last_d,&t,&prev_s,&prev_d,&real_prev_size,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -869,8 +872,8 @@ int main() {
           	double car_speed = j[1]["speed"];
 
           	// Previous path data given to the Planner
-          	auto previous_path_x = j[1]["previous_path_x"];
-          	auto previous_path_y = j[1]["previous_path_y"];
+          	vector<double> previous_path_x = j[1]["previous_path_x"];
+          	vector<double> previous_path_y = j[1]["previous_path_y"];
           	// Previous path's end s and d values 
           	double end_path_s = j[1]["end_path_s"];
           	double end_path_d = j[1]["end_path_d"];
@@ -1185,6 +1188,8 @@ int main() {
 	        real_prev_size = next_x_vals.size();
 */
 
+
+/*
           	// The time in sec that car takes to visit each control point
           	double t_i = 0.02;
 
@@ -1208,21 +1213,7 @@ int main() {
           		s_ddot = poly_deriv_eval(prev_s_coeff, 2, t_deriv);
           		d_ddot = poly_deriv_eval(prev_d_coeff, 2, t_deriv);
           	}
-
-          	vector<double> s_start = {s, s_dot, s_ddot};
-          	vector<double> d_start = {d, d_dot, d_ddot};
-
           	cout << "s_dot : " << s_dot << endl;
-
-          	// Define end-state 
-          	double T = 10;
-          	double dist = 100;
-          	//if(s_dot >= 10){
-          	//	T = dist/s_dot;
-          	//}
-          	vector <double> s_end = {s+dist, 10, 0};
-          	vector <double> d_end = {6, 0, 0};
-
 
           	// Make predictions base on sensor fusion data
           	vector<Vehicle> predictions;
@@ -1232,30 +1223,148 @@ int main() {
           		predictions.push_back(v);
           	}
 
-          	// Trayectory planner
-          	test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
 
-          	// Prepare to send values to the controler of the simulator
-			double t = t_i;
-          	while(t <= T + 0.01){
-          		double s = poly_eval(trajectory_to_execute.s, t);
-          		double d = poly_eval(trajectory_to_execute.d, t);
+			if(prev_size<20){
+				vector<double> s_start = {s, s_dot, s_ddot};
+	          	vector<double> d_start = {d, d_dot, d_ddot};
+
+	          	// Define end-state 
+	          	double dist, T;
+	          	double diff_vel = abs(ref_vel - s_dot);
+
+	          	// This is near to the cruise velocity
+	          	if(0 < diff_vel && diff_vel < 0.3){
+	          		cout <<"cruise control case" << endl;
+	          		T = 10;
+	          		dist = s_dot*T; //formula 3 with cero acc
+	          	}
+
+	          	if(diff_vel >= 0.3){
+	          		cout << "accelerate" << endl;
+	          		T = diff_vel; //Formula 1
+	          		dist = d_dot*T + (T*T)/2; //Formula 3
+	          	}
+
+	          	cout << "dist: " << dist << endl;
+	          	cout << "T: " << T << endl;
+
+	          	vector <double> s_end = {s+dist, ref_vel, 0};
+	          	vector <double> d_end = {6, 0, 0};
+
+	          	// Trayectory planner
+          		test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
+
+          		// Prepare to send values to the controler of the simulator
+				t = 0;
+	          	while(t <= T){
+	          		t += 0.02;
+	          		s = poly_eval(trajectory_to_execute.s, t);
+	          		d = poly_eval(trajectory_to_execute.d, t);
+
+	          		prev_s.push_back(s);
+	          		prev_d.push_back(d);
+	          		//cout << s << " , " << d << endl;	
+	          		vector<double> XY = getXY(s, d);
+
+	          		next_x_vals.push_back(XY[0]);
+	          		next_y_vals.push_back(XY[1]);			        
+	          	}
+
+	          	// Save some last variables sent
+	          	real_prev_size = next_x_vals.size();
+	          	prev_s_coeff = trajectory_to_execute.s;
+	          	prev_d_coeff = trajectory_to_execute.d;
+
+
+	        }
+          	else{
+          		next_x_vals = previous_path_x;
+	          	next_y_vals = previous_path_y;
+          	}
+
+*/
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+          	next_x_vals = previous_path_x;
+	        next_y_vals = previous_path_y;
+          	
+
+          	// Make predictions base on sensor fusion data
+          	vector<Vehicle> predictions;
+          	for(int i = 0; i < sensor_fusion.size(); i++){
+          		vector<double> car = sensor_fusion[i];
+          		Vehicle v(car);
+          		predictions.push_back(v);
+          	}
+
+          	// Number of points the car visited
+          	int index = real_prev_size - prev_size; 
+
+          	// Estimate the initial state
+          	double s = car_s;
+          	double d = car_d;
+          	double s_dot = 0;
+          	double d_dot = 0;
+          	double s_ddot = 0;
+          	double d_ddot = 0;
+          	if(prev_size != 0){
+          		s = last_s;
+          		d = last_d;
+          		s_dot = poly_deriv_eval(prev_s_coeff, 1, t);
+          		d_dot = poly_deriv_eval(prev_d_coeff, 1, t);
+          		s_ddot = poly_deriv_eval(prev_s_coeff, 2, t);
+          		d_ddot = poly_deriv_eval(prev_d_coeff, 2, t);
+          	}
+          	//cout << "s : " << s << endl;
+
+          	vector<double> s_start = {s, s_dot, s_ddot};
+	        vector<double> d_start = {d, d_dot, d_ddot};
+
+	        // Define end-state 
+          	double dist, T;
+          	double diff_vel = abs(ref_vel - s_dot);
+
+          	// This is near to the cruise velocity
+          	if(0 < diff_vel && diff_vel < 1){
+          		cout <<"cruise control" << endl;
+          		T = 1;
+          		dist = ref_vel*T; //formula 3 with cero acc
+          	}
+
+          	if(diff_vel >= 1){
+          		cout << "accelerate" << endl;
+          		T = diff_vel; //Formula 1 with a constant acceleration of 1
+          		//dist = T*(ref_vel + s_dot) / 2; //Formula 2
+          		dist = s_dot*T + T*T/2; //formula 3 with acc of one
+          	}
+          	cout << "T: " << T << endl;
+
+          	vector <double> s_end = {s+dist, ref_vel, 0};
+          	vector <double> d_end = {6, 0, 0};
+
+          	// Trayectory planner
+      		test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
+
+          	t = 0.0;
+          	for(int i = 0; i < 200-previous_path_x.size(); i++){
+          		t += 0.02;
+          		s = poly_eval(trajectory_to_execute.s, t);
+          		d = poly_eval(trajectory_to_execute.d, t);
 
           		prev_s.push_back(s);
           		prev_d.push_back(d);
-          		//cout << s << " , " << d << endl;	
+          		//cout << s << " , " << d << endl;
           		vector<double> XY = getXY(s, d);
 
           		next_x_vals.push_back(XY[0]);
           		next_y_vals.push_back(XY[1]);
-
-		        t += t_i;
           	}
 
-          	// Save some last variables sent
-          	real_prev_size = next_x_vals.size();
+          	last_s = s;
+          	last_d = d;
           	prev_s_coeff = trajectory_to_execute.s;
-          	prev_d_coeff = trajectory_to_execute.d;
+	        prev_d_coeff = trajectory_to_execute.d;
+	        real_prev_size = next_x_vals.size();
 
 
 		    // TODO END
