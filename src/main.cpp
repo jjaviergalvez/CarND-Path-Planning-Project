@@ -37,7 +37,7 @@ const map<string, double> WEIGHTED_COST_FUNCTIONS = {
     {"efficiency_cost",   1.0},
     {"max_jerk_cost",     1.0},
     {"total_jerk_cost",   1.0},
-    {"collision_cost",    100.0},
+    {"collision_cost",    1.0},
     {"buffer_cost",       1.0},
     {"max_accel_cost",    1.0},
     {"total_accel_cost",  1.0}
@@ -830,7 +830,7 @@ int main() {
   f_3.set_points(map_waypoints_s, map_waypoints_dy);
 
   // start in lane 1
-  int lane = 1;
+  double lane = 1;
 
   // Have a reference velocity to target
   double ref_vel = 45*0.45;
@@ -934,7 +934,7 @@ int main() {
           	else if(ref_vel < 49.5){
           		ref_vel += 0.224;
           	}
-*/
+
 
           	/*----------------------------------------------------------------------------------------
 			END: Section of code to cheack where other vehicles are.
@@ -1285,6 +1285,53 @@ int main() {
 */
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+          	if(prev_size > 0){
+          		car_s = last_s;
+          	}
+
+          	bool too_close = false;
+          	double infront_speed;
+          	// Find ref_v to use
+          	for(int i = 0; i < sensor_fusion.size(); i++){
+          		// Car is in my lane
+          		float d = sensor_fusion[i][6];
+          		if(d < (2+4*lane+2) && d > (2+4*lane-2)){
+          			double vx = sensor_fusion[i][3];
+          			double vy = sensor_fusion[i][4];
+          			double check_speed = sqrt(vx*vx + vy*vy);
+          			double check_car_s = sensor_fusion[i][5];
+
+          			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
+          			// check s values greater than mine and s group
+          			if((check_car_s > car_s) && (check_car_s-car_s) < 5){
+          				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
+          				// also flag to try to change lanes.
+          				//ref_vel = 29.5; //mph
+          				cout << "CAR IN FRONT" << endl;
+          				too_close = true;
+          				ref_vel = 29.5 *0.45;
+          				//if(lane > 0){
+          				//	lane = 0;
+          				//}
+
+          			}
+          			else{
+          				ref_vel = 45.5 *0.45;
+          			}
+          		}
+          	}
+
+/*
+          	//
+          	if(too_close){
+          		//ref_vel -= 0.224; //0.224 ~= 5 m/s² that is under 10 requirement
+          		ref_vel = infront_speed;
+          	}
+          	else{
+          		ref_vel = 45*0.45;	
+          	}
+*/
+
           	next_x_vals = previous_path_x;
 	        next_y_vals = previous_path_y;
           	
@@ -1296,9 +1343,6 @@ int main() {
           		Vehicle v(car);
           		predictions.push_back(v);
           	}
-
-          	// Number of points the car visited
-          	int index = real_prev_size - prev_size; 
 
           	// Estimate the initial state
           	double s = car_s;
@@ -1315,32 +1359,45 @@ int main() {
           		s_ddot = poly_deriv_eval(prev_s_coeff, 2, t);
           		d_ddot = poly_deriv_eval(prev_d_coeff, 2, t);
           	}
-          	//cout << "s : " << s << endl;
-
           	vector<double> s_start = {s, s_dot, s_ddot};
 	        vector<double> d_start = {d, d_dot, d_ddot};
 
 	        // Define end-state 
-          	double dist, T;
-          	double diff_vel = abs(ref_vel - s_dot);
+          	double dist, T, acc;
+          	double diff_vel = ref_vel - s_dot;
 
           	// This is near to the cruise velocity
-          	if(0 < diff_vel && diff_vel < 1){
-          		cout <<"cruise control" << endl;
+          	if(0 <= diff_vel && diff_vel < 0.3){
+          		//cout <<"cruise control" << endl;
           		T = 1;
           		dist = ref_vel*T; //formula 3 with cero acc
           	}
 
-          	if(diff_vel >= 1){
-          		cout << "accelerate" << endl;
-          		T = diff_vel; //Formula 1 with a constant acceleration of 1
-          		//dist = T*(ref_vel + s_dot) / 2; //Formula 2
-          		dist = s_dot*T + T*T/2; //formula 3 with acc of one
+          	if(diff_vel >= 0.3){
+          		//cout << "accelerate" << endl;
+          		acc = 1;
+          		T = diff_vel/acc; //Formula 1
+          		dist = s_dot*T + T*T*acc/2; //formula
           	}
-          	cout << "T: " << T << endl;
+
+          	if(diff_vel < 0){
+          		//cout << "DESASELERATE" << endl;
+          		//ref_vel -= 10;
+          		T = 1;
+          		dist = ref_vel*T; //formula 3 with cero acc
+          	}
+
+      	
+      		cout << "?????????????" << endl;
+      		cout << "ref_vel: " << ref_vel << endl;
+      		//cout << "T: " << T << endl;
+      		//cout << "dist: " << dist << endl;
+      		//cout << "s_dot: " << s_dot << endl;
+      	
+          	
 
           	vector <double> s_end = {s+dist, ref_vel, 0};
-          	vector <double> d_end = {6, 0, 0};
+          	vector <double> d_end = {2+4*lane, 0, 0};
 
           	// Trayectory planner
       		test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
@@ -1364,7 +1421,6 @@ int main() {
           	last_d = d;
           	prev_s_coeff = trajectory_to_execute.s;
 	        prev_d_coeff = trajectory_to_execute.d;
-	        real_prev_size = next_x_vals.size();
 
 
 		    // TODO END
