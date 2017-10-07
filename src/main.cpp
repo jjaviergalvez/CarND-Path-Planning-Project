@@ -203,7 +203,7 @@ public:
 		double s = car[5];
 		double d = car[6];
 		
-		double vel = sqrt(vx*vx + vy*vy)*SPEED_FACTOR;
+		double vel = sqrt(vx*vx + vy*vy);
 		_start_state = { s, vel/2, 0,
 						 d,     0, 0 };
 
@@ -1323,7 +1323,7 @@ int main() {
           	}
 
           	bool too_close = false;
-          	double infront_speed;
+          	int id_to_follow;
           	// Find ref_v to use
           	for(int i = 0; i < sensor_fusion.size(); i++){
           		// Car is in my lane
@@ -1340,9 +1340,10 @@ int main() {
           				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
           				// also flag to try to change lanes.
           				//ref_vel = 29.5; //mph
-          				cout << "CAR IN FRONT" << endl;
+          				//cout << "CAR IN FRONT" << endl;
           				too_close = true;
-          				ref_vel = check_speed;
+          				id_to_follow = i;
+          				//ref_vel = check_speed;
           				//if(lane > 0){
           				//	lane = 0;
           				//}
@@ -1397,43 +1398,62 @@ int main() {
 
 	        cout << "ref_vel: " << ref_vel << endl;
 
-	        // Define end-state 
-          	double dist, T, acc;
-          	double diff_vel = ref_vel - s_dot;
+	        vector <double> s_end;
+	        vector <double> d_end;
 
-          	// This is near to the cruise velocity
-          	if(-0.3 < diff_vel && diff_vel < 0.3){
-          		//cout <<"cruise control" << endl;
-          		T = 1;
-          		dist = ref_vel*T; //formula 3 with cero acc
-          	}
+	        // Define end-state
+	        double dist, T, acc;
+	        if(too_close){
+	        	cout << "CAR IN FRONT" << endl;
+	        	T = 1;
+	        	vector<double> target = predictions[id_to_follow].state_in(T);
+	        	vector<double> target_s(target.begin(), target.begin() +3);
 
-          	if(diff_vel >= 0.3){
-          		//cout << "accelerate" << endl;
-          		acc = 1.5;
-          		T = diff_vel/acc; //Formula 1
-          		dist = s_dot*T + T*T*acc/2; //formula
-          	}
+	        	double vx = sensor_fusion[id_to_follow][3];
+          		double vy = sensor_fusion[id_to_follow][4];
+          		double check_speed = sqrt(vx*vx + vy*vy);
+          		double check_car_s = sensor_fusion[id_to_follow][5];
+          		check_car_s += ((double)prev_size * 0.02 * check_speed);
 
-          	if(diff_vel <= -0.3){
-          		//cout << "DESASELERATE" << endl;
-          		//ref_vel -= 10;
-          		T = 1;
-          		//dist = ref_vel*T; //formula 3 with cero acc
-          		dist = (s_dot - 5)*T; //formula 3 with cero acc
-          	}
+          		ref_vel = check_speed;
 
-      	
-      		//cout << "?????????????" << endl;
-      		//cout << "ref_vel: " << ref_vel << endl;
-      		//cout << "T: " << T << endl;
-      		//cout << "dist: " << dist << endl;
-      		//cout << "s_dot: " << s_dot << endl;
-      	
-          	
+	        	//s_end = target_s;
+	        	s_end = {check_car_s, ref_vel, 0};
+	        	d_end = {2+4*lane, 0, 0};
+	        }
+	        else{
+	        	ref_vel = 49 * SPEED_FACTOR;
+	        	
+	          	double diff_vel = ref_vel - s_dot;
 
-          	vector <double> s_end = {s+dist, ref_vel, 0};
-          	vector <double> d_end = {2+4*lane, 0, 0};
+	          	// This is near to the cruise velocity
+	          	if(-0.3 < diff_vel && diff_vel < 0.3){
+	          		//cout <<"cruise control" << endl;
+	          		T = 1;
+	          		dist = ref_vel*T; //formula 3 with cero acc
+	          	}
+
+	          	if(diff_vel >= 0.3){
+	          		//cout << "accelerate" << endl;
+	          		acc = 1.5;
+	          		T = diff_vel/acc; //Formula 1
+	          		dist = s_dot*T + T*T*acc/2; //formula
+	          	}
+
+	          	/*
+	          	if(diff_vel <= -0.3){
+	          		//cout << "DESASELERATE" << endl;
+	          		T = 1;
+	          		//dist = ref_vel*T; //formula 3 with cero acc
+	          		dist = (s_dot - 5)*T; //formula 3 with cero acc
+	          	}
+	          	*/
+	          	
+	          	s_end = {s+dist, ref_vel, 0};
+	          	d_end = {2+4*lane, 0, 0};
+	        }
+
+
 
           	// Trayectory planner
       		test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
