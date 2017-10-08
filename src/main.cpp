@@ -410,6 +410,17 @@ double logistic(double x){
 	return (2.0 / (1 + exp(-x)) - 1.0);
 }
 
+
+/*
+	Function that takes as input the differece of velocity and output 
+	a smooth acceleration.
+
+*/
+double to_acc(double x){
+	double x_0 = 8.0, k = 0.5, L = 1.0;
+	return ( L / ( 1. + exp(-k*(x - x_0)) ) );
+}
+
 /*
     Calculates the closest distance a particular vehicle during a trajectory.
 */
@@ -1336,7 +1347,7 @@ int main() {
 
           			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
           			// check s values greater than mine and s group
-          			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
+          			if((check_car_s > car_s) && (check_car_s-car_s) < 20){
           				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
           				// also flag to try to change lanes.
           				//ref_vel = 29.5; //mph
@@ -1385,7 +1396,7 @@ int main() {
           	double d_dot = 0;
           	double s_ddot = 0;
           	double d_ddot = 0;
-          	if(prev_size != 0){
+          	if(prev_s_coeff.size() != 0){
           		s = last_s;
           		d = last_d;
           		s_dot = poly_deriv_eval(prev_s_coeff, 1, t);
@@ -1396,24 +1407,28 @@ int main() {
           	vector<double> s_start = {s, s_dot, s_ddot};
 	        vector<double> d_start = {d, d_dot, d_ddot};
 
-	        cout << "ref_vel: " << ref_vel << endl;
+	        //cout << "ref_vel: " << ref_vel << endl;
 
 	        vector <double> s_end;
 	        vector <double> d_end;
 
 	        // Define end-state
-	        double dist, T, acc;
+	        double dist, T, acc, diff_vel;
 	        if(too_close){
 	        	cout << "CAR IN FRONT" << endl;
-	        	T = 1;
-	        	vector<double> target = predictions[id_to_follow].state_in(T);
-	        	vector<double> target_s(target.begin(), target.begin() +3);
 
 	        	double vx = sensor_fusion[id_to_follow][3];
           		double vy = sensor_fusion[id_to_follow][4];
           		double check_speed = sqrt(vx*vx + vy*vy);
           		double check_car_s = sensor_fusion[id_to_follow][5];
           		check_car_s += ((double)prev_size * 0.02 * check_speed);
+          		
+          		diff_vel = abs(ref_vel - check_speed);
+
+          		//acc = 6 * to_acc(diff_vel);	          	
+          		//T = diff_vel/acc; //Formula 1
+          		//cout << "T: " << T << endl;
+          		T = 1;
 
           		ref_vel = check_speed;
 
@@ -1424,30 +1439,21 @@ int main() {
 	        else{
 	        	ref_vel = 49 * SPEED_FACTOR;
 	        	
-	          	double diff_vel = ref_vel - s_dot;
+	          	diff_vel = abs(ref_vel - s_dot);
 
-	          	// This is near to the cruise velocity
-	          	if(-0.3 < diff_vel && diff_vel < 0.3){
+
+	          	if(diff_vel < 1){
 	          		//cout <<"cruise control" << endl;
 	          		T = 1;
 	          		dist = ref_vel*T; //formula 3 with cero acc
 	          	}
 
-	          	if(diff_vel >= 0.3){
-	          		//cout << "accelerate" << endl;
-	          		acc = 1.5;
+	          	if(diff_vel >= 1){
+		          	acc = 7 * to_acc(diff_vel);
+		          	cout << "acc: " << acc << endl;
 	          		T = diff_vel/acc; //Formula 1
-	          		dist = s_dot*T + T*T*acc/2; //formula
-	          	}
-
-	          	/*
-	          	if(diff_vel <= -0.3){
-	          		//cout << "DESASELERATE" << endl;
-	          		T = 1;
-	          		//dist = ref_vel*T; //formula 3 with cero acc
-	          		dist = (s_dot - 5)*T; //formula 3 with cero acc
-	          	}
-	          	*/
+	          		dist = s_dot*T + T*T*acc/2; //formula 3
+          		}	          	
 	          	
 	          	s_end = {s+dist, ref_vel, 0};
 	          	d_end = {2+4*lane, 0, 0};
@@ -1456,21 +1462,26 @@ int main() {
 
 
           	// Trayectory planner
-      		test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
+      		//test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
+      		test_case trajectory_to_execute;
+      		trajectory_to_execute.s = JMT(s_start, s_end, T);
+        	trajectory_to_execute.d = JMT(d_start, d_end, T);
 
           	t = 0.0;
-          	for(int i = 0; i < 200-previous_path_x.size(); i++){
+          	double dist_diff = 0;
+          	for(int i = 0; i < 50-previous_path_x.size(); i++){
+          	//while(t < trajectory_to_execute.t){
           		t += 0.02;
           		s = poly_eval(trajectory_to_execute.s, t);
           		d = poly_eval(trajectory_to_execute.d, t);
 
-          		prev_s.push_back(s);
-          		prev_d.push_back(d);
           		//cout << s << " , " << d << endl;
           		vector<double> XY = getXY(s, d);
 
           		next_x_vals.push_back(XY[0]);
           		next_y_vals.push_back(XY[1]);
+
+          		dist_diff = s - car_s;
           	}
 
           	last_s = s;
