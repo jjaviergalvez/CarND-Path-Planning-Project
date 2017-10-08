@@ -1008,6 +1008,11 @@ int main() {
           		T = 2 * dist / (s_dot + check_speed); //formula 2
 
           		s_end = {check_car_s - 0.01, ref_vel, 0};
+
+          		if(s_dot < 40*SPEED_FACTOR){
+          			lane = 0;
+          		}
+	        	
 	        	d_end = {2+4*lane, 0, 0};
 	        }
 	        else{
