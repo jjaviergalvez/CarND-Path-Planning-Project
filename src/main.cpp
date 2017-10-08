@@ -417,7 +417,9 @@ double logistic(double x){
 
 */
 double to_acc(double x){
-	double x_0 = 8.0, k = 0.5, L = 1.0;
+	//double x_0 = 8.0, k = 0.5, L = 1.0;
+	//double x_0 = 3.0, k = 1.5, L = 1.0;
+	double x_0 = 5.0, k = 1, L = 1.0;
 	return ( L / ( 1. + exp(-k*(x - x_0)) ) );
 }
 
@@ -1414,6 +1416,7 @@ int main() {
 
 	        // Define end-state
 	        double dist, T, acc, diff_vel;
+	        test_case trajectory_to_execute;
 	        if(too_close){
 	        	cout << "CAR IN FRONT" << endl;
 
@@ -1423,65 +1426,58 @@ int main() {
           		double check_car_s = sensor_fusion[id_to_follow][5];
           		check_car_s += ((double)prev_size * 0.02 * check_speed);
           		
-          		diff_vel = abs(ref_vel - check_speed);
-
-          		//acc = 6 * to_acc(diff_vel);	          	
-          		//T = diff_vel/acc; //Formula 1
-          		//cout << "T: " << T << endl;
-          		T = 1;
-
+          		diff_vel = s_dot - check_speed;
           		ref_vel = check_speed;
 
-	        	//s_end = target_s;
-	        	s_end = {check_car_s, ref_vel, 0};
+          		dist = check_car_s - car_s;
+
+          		T = 2 * dist / (s_dot + check_speed); //formula 2
+
+          		s_end = {check_car_s - 0.1, ref_vel, 0};
 	        	d_end = {2+4*lane, 0, 0};
+
 	        }
 	        else{
+	        	cout << "FREE" << endl;
+
 	        	ref_vel = 49 * SPEED_FACTOR;
 	        	
 	          	diff_vel = abs(ref_vel - s_dot);
 
-
+	          	// cruise control
 	          	if(diff_vel < 1){
-	          		//cout <<"cruise control" << endl;
 	          		T = 1;
 	          		dist = ref_vel*T; //formula 3 with cero acc
 	          	}
 
+	          	// accelerate
 	          	if(diff_vel >= 1){
 		          	acc = 7 * to_acc(diff_vel);
-		          	cout << "acc: " << acc << endl;
 	          		T = diff_vel/acc; //Formula 1
 	          		dist = s_dot*T + T*T*acc/2; //formula 3
           		}	          	
 	          	
 	          	s_end = {s+dist, ref_vel, 0};
 	          	d_end = {2+4*lane, 0, 0};
+
 	        }
 
+	        // Trayectory planner
+	        //trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
 
-
-          	// Trayectory planner
-      		//test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
-      		test_case trajectory_to_execute;
-      		trajectory_to_execute.s = JMT(s_start, s_end, T);
-        	trajectory_to_execute.d = JMT(d_start, d_end, T);
+	        trajectory_to_execute.s = JMT(s_start, s_end, T);
+	        trajectory_to_execute.d = JMT(d_start, d_end, T);
 
           	t = 0.0;
-          	double dist_diff = 0;
           	for(int i = 0; i < 50-previous_path_x.size(); i++){
-          	//while(t < trajectory_to_execute.t){
           		t += 0.02;
           		s = poly_eval(trajectory_to_execute.s, t);
           		d = poly_eval(trajectory_to_execute.d, t);
-
           		//cout << s << " , " << d << endl;
           		vector<double> XY = getXY(s, d);
 
           		next_x_vals.push_back(XY[0]);
           		next_y_vals.push_back(XY[1]);
-
-          		dist_diff = s - car_s;
           	}
 
           	last_s = s;
