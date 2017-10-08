@@ -879,18 +879,13 @@ int main() {
   double lane = 1;
 
   // Have a reference velocity to target
-  double ref_vel = 49.0 * SPEED_FACTOR;
+  double ref_vel = 47.0 * SPEED_FACTOR;
 
-  vector<double> prev_s_coeff;
-  vector<double> prev_d_coeff;
-  vector<double> prev_s;
-  vector<double> prev_d;
-  int real_prev_size = 0;
+  vector<double> prev_s_coeff, prev_d_coeff;
   double last_s, last_d;
-
   double t = 0;
 
-  h.onMessage([&last_s,&last_d,&t,&prev_s,&prev_d,&real_prev_size,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&last_s,&last_d,&t,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -937,403 +932,11 @@ int main() {
 
           	int prev_size = previous_path_x.size();
 
-          	/*----------------------------------------------------------------------------------------
-			BEGIN: Section of code to cheack where other vehicles are.
-          	----------------------------------------------------------------------------------------*/
-/*
-          	if(prev_size > 0){
-          		car_s = end_path_s;
-          	}
-
-          	bool too_close = false;
-
-          	// Find ref_v to use
-          	for(int i = 0; i < sensor_fusion.size(); i++){
-          		// Car is in my lane
-          		float d = sensor_fusion[i][6];
-          		if(d < (2+4*lane+2) && d > (2+4*lane-2)){
-          			double vx = sensor_fusion[i][3];
-          			double vy = sensor_fusion[i][4];
-          			double check_speed = sqrt(vx*vx + vy*vy);
-          			double check_car_s = sensor_fusion[i][5];
-
-          			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
-          			// check s values greater than mine and s group
-          			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
-          				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
-          				// also flag to try to change lanes.
-          				// ref_vel = 29.5; //mph
-          				too_close = true;
-          				if(lane > 0){
-          					lane = 0;
-          				}
-
-          			}
-          		}
-          	}
-
-
-          	//
-          	if(too_close){
-          		ref_vel -= 0.224; //0.224 ~= 5 m/s² that is under 10 requirement
-          	}
-          	else if(ref_vel < 49.5){
-          		ref_vel += 0.224;
-          	}
-
-
-          	/*----------------------------------------------------------------------------------------
-			END: Section of code to cheack where other vehicles are.
-          	----------------------------------------------------------------------------------------*/         
-
-
-          	/*----------------------------------------------------------------------------------------
-			BEGIN: Stay in a lane using splines
-          	----------------------------------------------------------------------------------------*/
-/*
-          	// Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
-          	// Later we will interpolate these waypoints with a spline and fill it in with more points that control speed
-          	vector<double> ptsx;
-          	vector<double> ptsy;
-
-          	// reference x,y yaw states
-          	// either we will reference the satarting point as where the car is or at the previous paths end point
-          	double ref_x = car_x;
-          	double ref_y = car_y;
-          	double ref_yaw = deg2rad(car_yaw);
-
-
-          	// if previous path is almost empty, use the car as startinf reference
-          	if(prev_size < 2){
-          		// Use two points that make the path tangent to the car
-          		double prev_car_x = car_x - cos(car_yaw);
-          		double prev_car_y = car_y - sin(car_yaw);
-
-          		ptsx.push_back(prev_car_x);
-          		ptsx.push_back(car_x);
-          		
-          		ptsy.push_back(prev_car_y);
-          		ptsy.push_back(car_y);
-
-          	}else{
-          		// Use the previous path's end point as starting reference 
-
-          		//redefine reference state as previous path end point
-          		ref_x = previous_path_x[prev_size-1];
-          		ref_y = previous_path_y[prev_size-1];
-
-          		double ref_x_prev = previous_path_x[prev_size-2];
-          		double ref_y_prev = previous_path_y[prev_size-2];
-          		ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
-
-          		// Use the two points that make the path tangent to the previous path's end point
-          		ptsx.push_back(ref_x_prev);
-          		ptsx.push_back(ref_x);
-
-          		ptsy.push_back(ref_y_prev);
-          		ptsy.push_back(ref_y);
-
-          	}
-
-          	// In Frenet add evenly 30m spaced points ahead of the starting reference
-          	vector<double> next_wp0 = getXY(car_s+30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          	vector<double> next_wp1 = getXY(car_s+60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          	vector<double> next_wp2 = getXY(car_s+90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-
-          	//vector<double> foo = my_getXY(car_s+30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          	//cout << foo[0] << " " << foo[1] << " = "<< next_wp0[0] << " " << next_wp0[1] << endl;
-
-          	ptsx.push_back(next_wp0[0]);
-          	ptsx.push_back(next_wp1[0]);
-          	ptsx.push_back(next_wp2[0]);
-
-          	ptsy.push_back(next_wp0[1]);
-          	ptsy.push_back(next_wp1[1]);
-          	ptsy.push_back(next_wp2[1]);
-
-          	for (int i = 0; i < ptsx.size(); i++){
-          		// Shift car reference angle to 0 
-          		double shift_x = ptsx[i] - ref_x;
-          		double shift_y = ptsy[i] - ref_y;
-
-          		ptsx[i] = shift_x*cos(0-ref_yaw) - shift_y*sin(0-ref_yaw);
-          		ptsy[i] = shift_x*sin(0-ref_yaw) + shift_y*cos(0-ref_yaw);
-
-          	}
-
-          	// create a spline
-          	tk::spline s;
-
-          	// set (x,y) points to the spline
-          	s.set_points(ptsx,ptsy);
-
-          	// Define the actual (x,y) points we will use for the planner
-          	// Start with all od the previous path points from last time
-          	for(int i = 0; i < previous_path_x.size(); i++){
-          		next_x_vals.push_back(previous_path_x[i]);
-          		next_y_vals.push_back(previous_path_y[i]);
-          	}
-
-          	//Calculate how to break up spline points so that we travel at pur desired reference velocity
-          	double target_x = 30.0;
-          	double target_y = s(target_x);
-          	//double target_dist = sqrt(target_x*target_x + target_y*target_y);
-          	double target_dist = sqrt((target_x)*(target_x) + (target_y)*(target_y)); // parentesis
-
-          	double x_add_on = 0; 
-
-          	// Fill up the rest of our path planner after filling it with previous points, here we eill always output 50 points
-          	for(int i = 1; i <= 50-previous_path_x.size(); i++){
-          		double N = target_dist / (0.02*ref_vel/2.24);
-          		double x_point = x_add_on + target_x/N;
-          		double y_point = s(x_point);
-
-          		x_add_on = x_point;
-
-          		double x_ref = x_point;
-          		double y_ref = y_point;
-
-          		// rotate back to normal after rotating it earlier
-          		x_point = x_ref*cos(ref_yaw) - y_ref*sin(ref_yaw);
-          		y_point = x_ref*sin(ref_yaw) + y_ref*cos(ref_yaw);
-
-          		x_point += ref_x;
-          		y_point += ref_y;
-
-          		next_x_vals.push_back(x_point);
-          		next_y_vals.push_back(y_point);
-
-          	}
-*/
-          	/*----------------------------------------------------------------------------------------
-			END: Stay in a lane using splines
-          	----------------------------------------------------------------------------------------*/
-
-
-			/*----------------------------------------------------------------------------------------
-			BEGIN: Stay in a lane without splines
-          	----------------------------------------------------------------------------------------*/
-
-/*
-		    for(int i = 0; i < previous_path_x.size() ; i++){
-          		next_x_vals.push_back(previous_path_x[i]);
-          		next_y_vals.push_back(previous_path_y[i]);
-          	}
-
-
-          	vector<double> last_frenet;
-
-          	if(prev_size >= 2){
-          		int index_1 = prev_size -1;
-          		int index_0 = index_1 - 1;
-          		double y1 = previous_path_y[index_1];
-          		double y0 = previous_path_y[index_0];
-          		
-          		double x1 = previous_path_x[index_1];
-          		double x0 = previous_path_x[index_0];
-          		
-          		double theta = atan2(y1-y0, x1-x0);
-
-          		last_frenet = getFrenet(previous_path_x[index_1] , previous_path_y[index_1], theta, map_waypoints_x, map_waypoints_y);
-          	}else{
-          		last_frenet = {car_s, car_d};
-          	}
-
-*/
-
-/*          	
-          	double dist_inc = 45./111;
-          	int N = 50;
-		    for(int i = 0; i < N; i++)
-		    {
-		    	double s = car_s + dist_inc*(i+1);
-		    	double d = 6;
-
-		    	vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-		        
-		        next_x_vals.push_back(XY[0]);
-		        next_y_vals.push_back(XY[1]);
-		        // next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
-		        // next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
-		    }
-*/		    
-		    /*----------------------------------------------------------------------------------------
-			END: Stay in a lane without splines
-          	----------------------------------------------------------------------------------------*/
-
-
-		    /*----------------------------------------------------------------------------------------
-			BEGIN: Calculate intitial condiction s_dot and s_double_dot
-          	----------------------------------------------------------------------------------------*/
-          	
-
-          	/*----------------------------------------------------------------------------------------
-			END: Stay in a lane without splines
-          	----------------------------------------------------------------------------------------*/
-          	// convert car_speed to s_dot and d_dot
-
-/*
-          	double t_i = 0.02;
-
-          	int index = real_prev_size - prev_size;
-
-          	double t_deriv = t_i * index;
-
-          	double s_dot = 0;
-          	double d_dot = 0;
-          	double s_double_dot = 0;
-          	double d_double_dot = 0;
-
-          	if(t_deriv > 0){
-          		s_dot = poly_deriv_eval(s_coeff, 1, t_deriv);
-          		d_dot = poly_deriv_eval(d_coeff, 1, t_deriv);
-          		s_double_dot = poly_deriv_eval(s_coeff, 2, t_deriv);
-          		d_double_dot = poly_deriv_eval(d_coeff, 2, t_deriv);
-          	}
-          	
-		    // start location of the vehicle: {s, s_dot, s_double_dot}
-          	double T = 4;
-          	
-          	cout <<"Real pos: \t"<< car_s << " , " << car_d << endl;
-          	if(prev_size != 0){
-          		car_s = prev_s[index];
-          		car_d = prev_d[index];
-          	}
-
-          	vector<double> s_start = {car_s, s_dot, s_double_dot};
-          	vector <double> s_end = {car_s+30, 15.0/2.24, 0};
-          	s_coeff = JMT(s_start, s_end, T);
-
-          	vector<double> d_start = {car_d, d_dot, d_double_dot};
-          	vector <double> d_end = {6, 0, 0};
-          	d_coeff = JMT(d_start, d_end, T);
-
-          	cout <<"Frenet_pos: \t"<< car_s << " , " << car_d << endl;
-          	cout <<"Frenet speed: \t"<< s_dot << " , " << d_dot <<endl;
-          	cout <<"Frenet accc: \t"<< s_double_dot << " , " << d_double_dot <<endl;
-          	cout <<"index: \t"<< index <<endl;
-          	cout <<"prev_size: \t"<< prev_size <<endl;
-          	cout << "***********************\n"; 
-
-          	double t = t_i;
-          	while(t <= T + 0.01){
-          		double s = poly_eval(s_coeff, t);
-          		double d = poly_eval(d_coeff, t);
-
-          		prev_s.push_back(s);
-          		prev_d.push_back(d);
-          		//cout << s << " , " << d << endl;	
-          		vector<double> XY = my_getXY(s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          		
-          		next_x_vals.push_back(XY[0]);
-		        next_y_vals.push_back(XY[1]);
-
-		        t += t_i;
-          	}
-
-	        real_prev_size = next_x_vals.size();
-*/
-
-
-/*
-          	// The time in sec that car takes to visit each control point
-          	double t_i = 0.02;
-
-          	// Number of points the car visited
-          	int index = real_prev_size - prev_size; 
-
-          	double t_deriv = t_i * index; // the time we gona use to estimate the actual vel and acc
-
-          	// Estimate the initial state
-          	double s = car_s;
-          	double d = car_d;
-          	double s_dot = 0;
-          	double d_dot = 0;
-          	double s_ddot = 0;
-          	double d_ddot = 0;
-          	if(index != 0){
-          		s = prev_s[index];
-          		d = prev_d[index];
-          		s_dot = poly_deriv_eval(prev_s_coeff, 1, t_deriv);
-          		d_dot = poly_deriv_eval(prev_d_coeff, 1, t_deriv);
-          		s_ddot = poly_deriv_eval(prev_s_coeff, 2, t_deriv);
-          		d_ddot = poly_deriv_eval(prev_d_coeff, 2, t_deriv);
-          	}
-          	cout << "s_dot : " << s_dot << endl;
-
-          	// Make predictions base on sensor fusion data
-          	vector<Vehicle> predictions;
-          	for(int i = 0; i < sensor_fusion.size(); i++){
-          		vector<double> car = sensor_fusion[i];
-          		Vehicle v(car);
-          		predictions.push_back(v);
-          	}
-
-
-			if(prev_size<20){
-				vector<double> s_start = {s, s_dot, s_ddot};
-	          	vector<double> d_start = {d, d_dot, d_ddot};
-
-	          	// Define end-state 
-	          	double dist, T;
-	          	double diff_vel = abs(ref_vel - s_dot);
-
-	          	// This is near to the cruise velocity
-	          	if(0 < diff_vel && diff_vel < 0.3){
-	          		cout <<"cruise control case" << endl;
-	          		T = 10;
-	          		dist = s_dot*T; //formula 3 with cero acc
-	          	}
-
-	          	if(diff_vel >= 0.3){
-	          		cout << "accelerate" << endl;
-	          		T = diff_vel; //Formula 1
-	          		dist = d_dot*T + (T*T)/2; //Formula 3
-	          	}
-
-	          	cout << "dist: " << dist << endl;
-	          	cout << "T: " << T << endl;
-
-	          	vector <double> s_end = {s+dist, ref_vel, 0};
-	          	vector <double> d_end = {6, 0, 0};
-
-	          	// Trayectory planner
-          		test_case trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
-
-          		// Prepare to send values to the controler of the simulator
-				t = 0;
-	          	while(t <= T){
-	          		t += 0.02;
-	          		s = poly_eval(trajectory_to_execute.s, t);
-	          		d = poly_eval(trajectory_to_execute.d, t);
-
-	          		prev_s.push_back(s);
-	          		prev_d.push_back(d);
-	          		//cout << s << " , " << d << endl;	
-	          		vector<double> XY = getXY(s, d);
-
-	          		next_x_vals.push_back(XY[0]);
-	          		next_y_vals.push_back(XY[1]);			        
-	          	}
-
-	          	// Save some last variables sent
-	          	real_prev_size = next_x_vals.size();
-	          	prev_s_coeff = trajectory_to_execute.s;
-	          	prev_d_coeff = trajectory_to_execute.d;
-
-
-	        }
-          	else{
-          		next_x_vals = previous_path_x;
-	          	next_y_vals = previous_path_y;
-          	}
-
-*/
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
           	if(prev_size > 0){
           		car_s = last_s;
           	}
+
+          	// Looking for if is another car in the same lane in front of us 
 
           	bool too_close = false;
           	int id_to_follow;
@@ -1349,39 +952,15 @@ int main() {
 
           			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
           			// check s values greater than mine and s group
-          			if((check_car_s > car_s) && (check_car_s-car_s) < 20){
+          			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
           				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
           				// also flag to try to change lanes.
           				//ref_vel = 29.5; //mph
-          				//cout << "CAR IN FRONT" << endl;
           				too_close = true;
           				id_to_follow = i;
-          				//ref_vel = check_speed;
-          				//if(lane > 0){
-          				//	lane = 0;
-          				//}
-
-          			}
-          			else{
-          				//ref_vel = 49.0 * SPEED_FACTOR;
           			}
           		}
-          	}
-
-/*
-          	//
-          	if(too_close){
-          		//ref_vel -= 0.224; //0.224 ~= 5 m/s² that is under 10 requirement
-          		ref_vel = infront_speed;
-          	}
-          	else{
-          		ref_vel = 45*0.45;	
-          	}
-*/
-
-          	next_x_vals = previous_path_x;
-	        next_y_vals = previous_path_y;
-          	
+          	}          	
 
           	// Make predictions base on sensor fusion data
           	vector<Vehicle> predictions;
@@ -1409,14 +988,11 @@ int main() {
           	vector<double> s_start = {s, s_dot, s_ddot};
 	        vector<double> d_start = {d, d_dot, d_ddot};
 
-	        //cout << "ref_vel: " << ref_vel << endl;
-
-	        vector <double> s_end;
-	        vector <double> d_end;
-
-	        // Define end-state
+	        // Define the end-state
+	        vector <double> s_end, d_end;
 	        double dist, T, acc, diff_vel;
 	        test_case trajectory_to_execute;
+
 	        if(too_close){
 	        	cout << "CAR IN FRONT" << endl;
 
@@ -1426,32 +1002,27 @@ int main() {
           		double check_car_s = sensor_fusion[id_to_follow][5];
           		check_car_s += ((double)prev_size * 0.02 * check_speed);
           		
-          		diff_vel = s_dot - check_speed;
           		ref_vel = check_speed;
-
           		dist = check_car_s - car_s;
 
           		T = 2 * dist / (s_dot + check_speed); //formula 2
 
-          		s_end = {check_car_s - 0.1, ref_vel, 0};
+          		s_end = {check_car_s - 0.01, ref_vel, 0};
 	        	d_end = {2+4*lane, 0, 0};
-
 	        }
 	        else{
 	        	cout << "FREE" << endl;
 
-	        	ref_vel = 49 * SPEED_FACTOR;
-	        	
-	          	diff_vel = abs(ref_vel - s_dot);
-
-	          	// cruise control
+	        	ref_vel = 47 * SPEED_FACTOR;
+	          	diff_vel = abs(ref_vel - s_dot); //use abs to consider little bumpings 
+	          	
 	          	if(diff_vel < 1){
+	          		// cruise control
 	          		T = 1;
 	          		dist = ref_vel*T; //formula 3 with cero acc
 	          	}
-
-	          	// accelerate
-	          	if(diff_vel >= 1){
+	          	else{ 
+	          		// accelerate
 		          	acc = 7 * to_acc(diff_vel);
 	          		T = diff_vel/acc; //Formula 1
 	          		dist = s_dot*T + T*T*acc/2; //formula 3
@@ -1464,10 +1035,15 @@ int main() {
 
 	        // Trayectory planner
 	        //trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
-
 	        trajectory_to_execute.s = JMT(s_start, s_end, T);
 	        trajectory_to_execute.d = JMT(d_start, d_end, T);
 
+          	// Send Values to the controller.
+	        // First the path that has not yet follower;
+          	next_x_vals = previous_path_x;
+	        next_y_vals = previous_path_y;
+
+	        // And then, the values of this trajectory
           	t = 0.0;
           	for(int i = 0; i < 50-previous_path_x.size(); i++){
           		t += 0.02;
@@ -1480,6 +1056,7 @@ int main() {
           		next_y_vals.push_back(XY[1]);
           	}
 
+          	// save some useful variables for the next iteration
           	last_s = s;
           	last_d = d;
           	prev_s_coeff = trajectory_to_execute.s;
