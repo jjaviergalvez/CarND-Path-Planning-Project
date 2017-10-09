@@ -34,7 +34,7 @@ const double VEHICLE_RADIUS = 1.5; // model vehicle as circle to simplify collis
 
 // weights of cost functions
 const map<string, double> WEIGHTED_COST_FUNCTIONS = {
-	{"exceeds_speed_limit_cost", 	10.0},
+	{"exceeds_speed_limit_cost", 	1.0},
 	//{"negative_speed_cost", 		10.0},
 	//{"time_diff_cost",    			1.0},
     //{"s_diff_cost",       			1.0},
@@ -42,7 +42,7 @@ const map<string, double> WEIGHTED_COST_FUNCTIONS = {
     //{"efficiency_cost",   			1.0},
     {"max_jerk_cost",     			1.0},
     //{"total_jerk_cost",   			1.0},
-    {"collision_cost",    			1.0},
+    {"collision_cost",    			10.0},
     //{"buffer_cost",       			1.0},
     {"max_accel_cost",    			1.0}
     //{"total_accel_cost",  			1.0}
@@ -632,7 +632,7 @@ double efficiency_cost(test_case traj, test_case target, double T, vector<Vehicl
 
 double total_accel_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double t, acc, total_acc = 0.0;
-	double dt = double(T) / 100.0;
+	double dt = double(traj.t) / 100.0;
 
 	for(int i = 0; i < 100; i++){
 		t = dt * i;
@@ -648,7 +648,7 @@ double total_accel_cost(test_case traj, test_case target, double T, vector<Vehic
 
 double max_accel_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 	double acc, t, max_acc = 0;
-	double dt = double(T) / 100.0;
+	double dt = double(traj.t) / 100.0;
 
 	for(int i = 0; i < 100 ; i++){
 		t = dt * i;
@@ -667,7 +667,7 @@ double max_accel_cost(test_case traj, test_case target, double T, vector<Vehicle
 double max_jerk_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 
 	double jerk, t, max_jerk = 0;
-	double dt = double(T) / 100.0;
+	double dt = double(traj.t) / 100.0;
 
 	for(int i = 0; i < 100 ; i++){
 		t = dt * i;
@@ -686,7 +686,7 @@ double max_jerk_cost(test_case traj, test_case target, double T, vector<Vehicle>
 double total_jerk_cost(test_case traj, test_case target, double T, vector<Vehicle> predictions){
 
 	double t, jerk, total_jerk = 0.0;
-	double dt = double(T) / 100.0;
+	double dt = double(traj.t) / 100.0;
 
 	for(int i = 0; i < 100; i++){
 		t = dt * i;
@@ -993,7 +993,7 @@ int main() {
 	        test_case trajectory_to_execute;
 
 	        if(too_close){
-	        	cout << "CAR IN FRONT" << endl;
+	        	cout << "CAR IN FRONT";
 
 	        	double vx = sensor_fusion[id_to_follow][3];
           		double vy = sensor_fusion[id_to_follow][4];
@@ -1006,7 +1006,7 @@ int main() {
 
           		T = 2 * dist / (s_dot + check_speed); //formula 2
           		
-        		cout << "Consider Change Lane" << endl;
+        		//cout << "Consider Change Lane" << endl;
 
         		vector<string> states = {"LCL", "LCR"};
 			    if(lane == 0)
@@ -1020,7 +1020,7 @@ int main() {
 			    double test_lane;
 
 			    for(const auto& state:states){
-			    	s_end = {check_car_s + 4, ref_vel, 0};
+			    	s_end = {check_car_s, ref_vel, 0};
 
 			    	if(state == "LCL")
 			    		test_lane = lane - 1;
@@ -1029,13 +1029,19 @@ int main() {
 			    		test_lane = lane + 1;
 
 		    		d_end = {2+4*test_lane, 0, 0};
-		    		test_case tr = PTG(s_start, d_start, s_end, d_end, T, predictions);
+		    		//test_case tr = PTG(s_start, d_start, s_end, d_end, T, predictions);
+		    		test_case tr;
+		    		tr.s = JMT(s_start, s_end, T);
+	        		tr.d = JMT(d_start, d_end, T);
+	        		tr.t = T;
+
 
 		    		test_case target;
 					target.s = s_end;
 					target.d = d_end;
 					target.t = T;
 
+					//cout << state << endl;
 					double cost = calculate_cost(tr, target, T, predictions, false);
 
 					if(cost < min_cost){
@@ -1046,21 +1052,26 @@ int main() {
 					state_tr.insert({state, tr});
 			    }
 
-			    if(min_cost < 10){
-			    	cout << state_min_cost << endl;
+			    //if(min_cost < 5){
+			    if(false){
+			    	//cout << state_min_cost << endl;
 
-			    	if(state_min_cost == "LCL")
+			    	if(state_min_cost == "LCL"){
+			    		cout << " -> lane change left" << endl;
 			    		lane -= 1;
+			    	}
 
-			    	if(state_min_cost == "LCR")
+			    	if(state_min_cost == "LCR"){
 			    		lane += 1;
+			    		cout << " -> lane change right" << endl;
+			    	}
 
 			    	trajectory_to_execute.s = state_tr[state_min_cost].s;
         			trajectory_to_execute.d = state_tr[state_min_cost].d;
 			    }
 			    else{
-			    	cout << "follow the car in front" << endl;
-			    	s_end = {check_car_s - 0.01, ref_vel, 0};
+			    	cout << " -> follow the car in front" << endl;
+			    	s_end = {check_car_s - 0.5, ref_vel, 0};
 			    	d_end = {2+4*lane, 0, 0};
           			trajectory_to_execute.s = JMT(s_start, s_end, T);
 	        		trajectory_to_execute.d = JMT(d_start, d_end, T);
@@ -1069,18 +1080,20 @@ int main() {
 	        	
 	        }
 	        else{
-	        	cout << "FREE" << endl;
+	        	cout << "FREE";
 
 	        	ref_vel = 47 * SPEED_FACTOR;
 	          	diff_vel = abs(ref_vel - s_dot); //use abs to consider little bumpings 
 	          	
 	          	if(diff_vel < 1){
 	          		// cruise control
+	          		cout << " -> cruise control" << endl;
 	          		T = 1;
 	          		dist = ref_vel*T; //formula 3 with cero acc
 	          	}
 	          	else{ 
 	          		// accelerate
+	          		cout << "-> speeding up" << endl;
 		          	acc = 6 * to_acc(diff_vel);
 	          		T = diff_vel/acc; //Formula 1
 	          		dist = s_dot*T + T*T*acc/2; //formula 3
