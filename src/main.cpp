@@ -1,3 +1,4 @@
+#include "tictoc.h"
 #include <fstream>
 #include <math.h>
 #include <uWS/uWS.h>
@@ -20,7 +21,7 @@ using Eigen::VectorXd;
 
 const double SPEED_FACTOR = 0.45; // To transform from MPH in cartesian coordinate to m/s in Frenet
 
-const int N_SAMPLES = 10;
+const int N_SAMPLES = 5;
 const vector<double> SIGMA_S = {10.0, 4.0, 2.0}; // s, s_dot, s_double_dot
 const vector<double> SIGMA_D = {1.0, 1.0, 1.0};
 const double SIGMA_T = 2.0;
@@ -33,18 +34,18 @@ const double VEHICLE_RADIUS = 1.5; // model vehicle as circle to simplify collis
 
 // weights of cost functions
 const map<string, double> WEIGHTED_COST_FUNCTIONS = {
-	{"exceeds_speed_limit_cost", 	1.0},
-	{"negative_speed_cost", 		10.0},
-	{"time_diff_cost",    			1.0},
-    {"s_diff_cost",       			1.0},
-    {"d_diff_cost",       			1.0},
-    {"efficiency_cost",   			1.0},
+	{"exceeds_speed_limit_cost", 	10.0},
+	//{"negative_speed_cost", 		10.0},
+	//{"time_diff_cost",    			1.0},
+    //{"s_diff_cost",       			1.0},
+    //{"d_diff_cost",       			1.0},
+    //{"efficiency_cost",   			1.0},
     {"max_jerk_cost",     			1.0},
-    {"total_jerk_cost",   			1.0},
+    //{"total_jerk_cost",   			1.0},
     {"collision_cost",    			1.0},
-    {"buffer_cost",       			1.0},
-    {"max_accel_cost",    			1.0},
-    {"total_accel_cost",  			1.0}
+    //{"buffer_cost",       			1.0},
+    {"max_accel_cost",    			1.0}
+    //{"total_accel_cost",  			1.0}
 };
 
 // END: C O N S T A N T S definition
@@ -417,9 +418,9 @@ double logistic(double x){
 
 */
 double to_acc(double x){
-	//double x_0 = 8.0, k = 0.5, L = 1.0;
+	double x_0 = 8.0, k = 0.5, L = 1.0;
 	//double x_0 = 3.0, k = 1.5, L = 1.0;
-	double x_0 = 5.0, k = 1, L = 1.0;
+	//double x_0 = 5.0, k = 1, L = 1.0;
 	return ( L / ( 1. + exp(-k*(x - x_0)) ) );
 }
 
@@ -704,24 +705,23 @@ typedef double (*FnPtr)(test_case, test_case, double, vector<Vehicle>);
 
 map<string, FnPtr> cf = {
 	{"exceeds_speed_limit_cost",  	exceeds_speed_limit_cost},
-	{"negative_speed_cost", 		negative_speed_cost},
-	{"time_diff_cost",    		  	time_diff_cost},
-    {"s_diff_cost",       		  	s_diff_cost},
-    {"d_diff_cost",					d_diff_cost},
-    {"efficiency_cost",   			efficiency_cost},
+	//{"negative_speed_cost", 		negative_speed_cost},
+	//{"time_diff_cost",    		  	time_diff_cost},
+    //{"s_diff_cost",       		  	s_diff_cost},
+    //{"d_diff_cost",					d_diff_cost},
+    //{"efficiency_cost",   			efficiency_cost},
     {"max_jerk_cost",     			max_jerk_cost},
-    {"total_jerk_cost",   			total_jerk_cost},
+    //{"total_jerk_cost",   			total_jerk_cost},
     {"collision_cost",    			collision_cost},
-    {"buffer_cost",      	 		buffer_cost},
-    {"max_accel_cost",    			max_accel_cost},
-    {"total_accel_cost",  			total_accel_cost}
+    //{"buffer_cost",      	 		buffer_cost},
+    {"max_accel_cost",    			max_accel_cost}
+    //{"total_accel_cost",  			total_accel_cost}
 };
-
 
 double calculate_cost(test_case trajectory, test_case target, double goal_t, vector<Vehicle> predictions, bool verbose){
 	double cost = 0.0;
 
-	for (auto& x: WEIGHTED_COST_FUNCTIONS) {
+	for (const auto& x: WEIGHTED_COST_FUNCTIONS) {
     	auto fname = x.first;
     	double weight = x.second;
     	double new_cost = weight * cf[fname](trajectory, target, goal_t, predictions);
@@ -786,7 +786,7 @@ test_case PTG(vector<double> start_s, vector<double> start_d, vector<double> goa
 	test_case goals;
 	double timestep = 0.5;
 	double t = T - 4 * timestep;
-
+	
 	while(t <= T + 4 * timestep){
 		goals.s = goal_s;
 		goals.d = goal_d;
@@ -801,7 +801,7 @@ test_case PTG(vector<double> start_s, vector<double> start_d, vector<double> goa
 			all_goals.push_back(goals);
 		}
 		t += timestep;
-	}
+	}	
 
 	// find best trajectory
 	vector<test_case> trajectories;
@@ -825,7 +825,6 @@ test_case PTG(vector<double> start_s, vector<double> start_d, vector<double> goa
 	target.s = goal_s;
 	target.d = goal_d;
 	target.t = T;
-
 	best = min_trajectory_cost(trajectories, target, T, predictions);
 
 	return best;
@@ -1006,14 +1005,68 @@ int main() {
           		dist = check_car_s - car_s;
 
           		T = 2 * dist / (s_dot + check_speed); //formula 2
+          		
+        		cout << "Consider Change Lane" << endl;
 
-          		s_end = {check_car_s - 0.01, ref_vel, 0};
+        		vector<string> states = {"LCL", "LCR"};
+			    if(lane == 0)
+			        states.erase(states.begin()); // remove LCL
+			    if(lane == 2)
+			        states.erase(states.end()); // remove LCR
+		    
+			    map<string, test_case> state_tr;
+			    double min_cost = 99999.;
+			    string state_min_cost;
+			    double test_lane;
 
-          		if(s_dot < 40*SPEED_FACTOR){
-          			lane = 0;
-          		}
+			    for(const auto& state:states){
+			    	s_end = {check_car_s + 4, ref_vel, 0};
+
+			    	if(state == "LCL")
+			    		test_lane = lane - 1;
+
+			    	if(state == "LCR")
+			    		test_lane = lane + 1;
+
+		    		d_end = {2+4*test_lane, 0, 0};
+		    		test_case tr = PTG(s_start, d_start, s_end, d_end, T, predictions);
+
+		    		test_case target;
+					target.s = s_end;
+					target.d = d_end;
+					target.t = T;
+
+					double cost = calculate_cost(tr, target, T, predictions, false);
+
+					if(cost < min_cost){
+						min_cost = cost;
+						state_min_cost = state;
+					}
+
+					state_tr.insert({state, tr});
+			    }
+
+			    if(min_cost < 10){
+			    	cout << state_min_cost << endl;
+
+			    	if(state_min_cost == "LCL")
+			    		lane -= 1;
+
+			    	if(state_min_cost == "LCR")
+			    		lane += 1;
+
+			    	trajectory_to_execute.s = state_tr[state_min_cost].s;
+        			trajectory_to_execute.d = state_tr[state_min_cost].d;
+			    }
+			    else{
+			    	cout << "follow the car in front" << endl;
+			    	s_end = {check_car_s - 0.01, ref_vel, 0};
+			    	d_end = {2+4*lane, 0, 0};
+          			trajectory_to_execute.s = JMT(s_start, s_end, T);
+	        		trajectory_to_execute.d = JMT(d_start, d_end, T);
+			    }
+
 	        	
-	        	d_end = {2+4*lane, 0, 0};
 	        }
 	        else{
 	        	cout << "FREE" << endl;
@@ -1028,7 +1081,7 @@ int main() {
 	          	}
 	          	else{ 
 	          		// accelerate
-		          	acc = 7 * to_acc(diff_vel);
+		          	acc = 6 * to_acc(diff_vel);
 	          		T = diff_vel/acc; //Formula 1
 	          		dist = s_dot*T + T*T*acc/2; //formula 3
           		}	          	
@@ -1036,12 +1089,15 @@ int main() {
 	          	s_end = {s+dist, ref_vel, 0};
 	          	d_end = {2+4*lane, 0, 0};
 
+
+	          	trajectory_to_execute.s = JMT(s_start, s_end, T);
+	        	trajectory_to_execute.d = JMT(d_start, d_end, T);
+
 	        }
 
 	        // Trayectory planner
 	        //trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
-	        trajectory_to_execute.s = JMT(s_start, s_end, T);
-	        trajectory_to_execute.d = JMT(d_start, d_end, T);
+	        
 
           	// Send Values to the controller.
 	        // First the path that has not yet follower;
@@ -1050,7 +1106,7 @@ int main() {
 
 	        // And then, the values of this trajectory
           	t = 0.0;
-          	for(int i = 0; i < 50-previous_path_x.size(); i++){
+          	for(int i = 0; i < 70-previous_path_x.size(); i++){
           		t += 0.02;
           		s = poly_eval(trajectory_to_execute.s, t);
           		d = poly_eval(trajectory_to_execute.d, t);
