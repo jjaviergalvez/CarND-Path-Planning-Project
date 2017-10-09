@@ -197,15 +197,16 @@ public:
 	int _id;
 
 	//	Constructor
-	Vehicle(vector<double> car){
+	Vehicle(vector<double> car, double prev_size){
 		_id = car[0];
 		double vx = car[3];
 		double vy = car[4];
-		double s = car[5];
 		double d = car[6];
 		
 		double vel = sqrt(vx*vx + vy*vy);
-		_start_state = { s, vel/2, 0,
+		double s = car[5] + 0.02 * prev_size * vel;
+
+		_start_state = { s, vel, 0,
 						 d,     0, 0 };
 
 	}
@@ -949,7 +950,7 @@ int main() {
           			double check_speed = sqrt(vx*vx + vy*vy);
           			double check_car_s = sensor_fusion[i][5];
 
-          			//check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
+          			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
           			// check s values greater than mine and s group
           			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
           				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
@@ -965,7 +966,7 @@ int main() {
           	vector<Vehicle> predictions;
           	for(int i = 0; i < sensor_fusion.size(); i++){
           		vector<double> car = sensor_fusion[i];
-          		Vehicle v(car);
+          		Vehicle v(car, (double)prev_size);
           		predictions.push_back(v);
           	}
 
@@ -1005,17 +1006,17 @@ int main() {
 		    // BEGIN: evaluate keep in lane
 			string state = "KL";
 	        if(too_close){
-	        	cout << "CAR IN FRONT";
+	        	//cout << "CAR IN FRONT";
 
 	        	double vx = sensor_fusion[id_to_follow][3];
           		double vy = sensor_fusion[id_to_follow][4];
           		double check_speed = sqrt(vx*vx + vy*vy);
           		double check_car_s = sensor_fusion[id_to_follow][5];
-          		//check_car_s += ((double)prev_size * 0.02 * check_speed);
+          		check_car_s += ((double)prev_size * 0.02 * check_speed);
           		
           		ref_vel = check_speed;
 
-		    	cout << " -> follow the car in front" << endl;
+		    	//cout << " -> follow the car in front" << endl;
 		    	double m_behind = 10; //meters behind the car
 		    	dist = (check_car_s - m_behind) - car_s;
 
@@ -1040,8 +1041,8 @@ int main() {
 				target.d = d_end;
 				target.t = T;
 				
-				cout << state << " cost: " << endl;
-				double cost = calculate_cost(tr, target, T, predictions, true);
+				//cout << state << " cost: " << endl;
+				double cost = calculate_cost(tr, target, T, predictions, false);
 
 				if(cost < min_cost){
 					min_cost = cost;
@@ -1051,20 +1052,20 @@ int main() {
 				state_tr.insert({state, tr});
 	        }
 	        else{
-	        	cout << "FREE";
+	        	//cout << "FREE";
 
 	        	ref_vel = 47 * SPEED_FACTOR;
 	          	diff_vel = abs(ref_vel - s_dot); //use abs to consider little bumpings 
 	          	
 	          	if(diff_vel < 1){
 	          		// cruise control
-	          		cout << " -> cruise control" << endl;
+	          		//cout << " -> cruise control" << endl;
 	          		T = 1;
 	          		dist = ref_vel*T; //formula 3 with cero acc
 	          	}
 	          	else{ 
 	          		// accelerate
-	          		cout << " -> speeding up" << endl;
+	          		//cout << " -> speeding up" << endl;
 		          	acc = 6 * to_acc(diff_vel);
 	          		T = diff_vel/acc; //Formula 1
 	          		dist = s_dot*T + T*T*acc/2; //formula 3
@@ -1083,8 +1084,8 @@ int main() {
 				target.d = d_end;
 				target.t = T;
 				
-				cout << state << " cost: " << endl;
-				double cost = calculate_cost(tr, target, T, predictions, true);
+				//cout << state << " cost: " << endl;
+				double cost = calculate_cost(tr, target, T, predictions, false);
 
 				if(cost < min_cost){
 					min_cost = cost;
@@ -1128,8 +1129,8 @@ int main() {
 				target.d = d_end;
 				target.t = T;
 				
-				cout << state << " cost: " << endl;
-				double cost = calculate_cost(tr, target, T, predictions, true);
+				//cout << state << " cost: " << endl;
+				double cost = calculate_cost(tr, target, T, predictions, false);
 
 				if(cost < min_cost){
 					min_cost = cost;
@@ -1140,11 +1141,6 @@ int main() {
 		    }
 
 		    // END: evaluate lane change 
-
- 				
-
-
-
 
 			
 
@@ -1159,14 +1155,11 @@ int main() {
 	    	}
 
     		if(state_min_cost == "KL"){
-	    		cout << " -> keep line" << endl;
+	    		cout << " -> keep lane" << endl;
 	    	}
 
 	    	trajectory_to_execute.s = state_tr[state_min_cost].s;
 			trajectory_to_execute.d = state_tr[state_min_cost].d;
-
-
-
 
 
 	        // Trayectory planner
