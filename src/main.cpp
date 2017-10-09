@@ -19,7 +19,7 @@ using Eigen::VectorXd;
 
 // BEGIN: C O N S T A N T S definition
 
-const double SPEED_FACTOR = 0.45; // To transform from MPH in cartesian coordinate to m/s in Frenet
+const double SPEED_FACTOR = 0.447; // To transform from MPH in cartesian coordinate to m/s in Frenet
 
 const int N_SAMPLES = 5;
 const vector<double> SIGMA_S = {10.0, 4.0, 2.0}; // s, s_dot, s_double_dot
@@ -949,7 +949,7 @@ int main() {
           			double check_speed = sqrt(vx*vx + vy*vy);
           			double check_car_s = sensor_fusion[i][5];
 
-          			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
+          			//check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
           			// check s values greater than mine and s group
           			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
           				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
@@ -999,9 +999,10 @@ int main() {
           		double vy = sensor_fusion[id_to_follow][4];
           		double check_speed = sqrt(vx*vx + vy*vy);
           		double check_car_s = sensor_fusion[id_to_follow][5];
-          		check_car_s += ((double)prev_size * 0.02 * check_speed);
+          		//check_car_s += ((double)prev_size * 0.02 * check_speed);
           		
           		ref_vel = check_speed;
+/*          		
           		dist = check_car_s - car_s;
 
           		T = 2 * dist / (s_dot + check_speed); //formula 2
@@ -1051,11 +1052,11 @@ int main() {
 
 					state_tr.insert({state, tr});
 			    }
-
+*/
 			    //if(min_cost < 5){
 			    if(false){
 			    	//cout << state_min_cost << endl;
-
+/*
 			    	if(state_min_cost == "LCL"){
 			    		cout << " -> lane change left" << endl;
 			    		lane -= 1;
@@ -1068,10 +1069,22 @@ int main() {
 
 			    	trajectory_to_execute.s = state_tr[state_min_cost].s;
         			trajectory_to_execute.d = state_tr[state_min_cost].d;
+*/
 			    }
 			    else{
 			    	cout << " -> follow the car in front" << endl;
-			    	s_end = {check_car_s - 0.5, ref_vel, 0};
+			    	double m_behind = 10; //meters behind the car
+			    	dist = (check_car_s - m_behind) - car_s;
+
+			    	cout << "dist: " << check_car_s - car_s << endl;
+			    	if(dist < 0){
+			    		m_behind = 0;
+			    		ref_vel -= 2;
+			    	}
+			    	
+          			T = 2 * dist / (s_dot + check_speed); //formula 2
+
+			    	s_end = {(check_car_s - m_behind), ref_vel, 0};
 			    	d_end = {2+4*lane, 0, 0};
           			trajectory_to_execute.s = JMT(s_start, s_end, T);
 	        		trajectory_to_execute.d = JMT(d_start, d_end, T);
@@ -1119,7 +1132,7 @@ int main() {
 
 	        // And then, the values of this trajectory
           	t = 0.0;
-          	for(int i = 0; i < 70-previous_path_x.size(); i++){
+          	for(int i = 0; i < 50-previous_path_x.size(); i++){
           		t += 0.02;
           		s = poly_eval(trajectory_to_execute.s, t);
           		d = poly_eval(trajectory_to_execute.d, t);
