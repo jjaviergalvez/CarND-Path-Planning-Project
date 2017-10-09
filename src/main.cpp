@@ -25,7 +25,7 @@ const int N_SAMPLES = 5;
 const vector<double> SIGMA_S = {10.0, 4.0, 2.0}; // s, s_dot, s_double_dot
 const vector<double> SIGMA_D = {1.0, 1.0, 1.0};
 const double SIGMA_T = 2.0;
-const double MAX_JERK = 10.0; // m/s/s/s
+const double MAX_JERK = 20.0; // m/s/s/s
 const double EXPECTED_JERK_IN_ONE_SEC = 2; // m/s/s
 const double MAX_ACCEL = 10.0; // m/s/s
 const double EXPECTED_ACC_IN_ONE_SEC = 1; // m/s in frenet frame
@@ -992,6 +992,18 @@ int main() {
 	        double dist, T, acc, diff_vel;
 	        test_case trajectory_to_execute;
 
+
+	        /*
+				COMPUTE THE COST OF EACH POSIBLE STATE
+	        */
+
+	        map<string, test_case> state_tr;
+		    double min_cost = 99999.;
+		    string state_min_cost;
+		    double test_lane;
+
+		    // BEGIN: evaluate keep in lane
+			string state = "KL";
 	        if(too_close){
 	        	cout << "CAR IN FRONT";
 
@@ -1002,95 +1014,41 @@ int main() {
           		//check_car_s += ((double)prev_size * 0.02 * check_speed);
           		
           		ref_vel = check_speed;
-/*          		
-          		dist = check_car_s - car_s;
 
-          		T = 2 * dist / (s_dot + check_speed); //formula 2
-          		
-        		//cout << "Consider Change Lane" << endl;
+		    	cout << " -> follow the car in front" << endl;
+		    	double m_behind = 10; //meters behind the car
+		    	dist = (check_car_s - m_behind) - car_s;
 
-        		vector<string> states = {"LCL", "LCR"};
-			    if(lane == 0)
-			        states.erase(states.begin()); // remove LCL
-			    if(lane == 2)
-			        states.erase(states.end()); // remove LCR
-		    
-			    map<string, test_case> state_tr;
-			    double min_cost = 99999.;
-			    string state_min_cost;
-			    double test_lane;
+		    	//cout << "dist: " << check_car_s - car_s << endl;
+		    	if(dist < 0){
+		    		m_behind = 0;
+		    		ref_vel -= 2;
+		    	}
+		    	
+      			T = 2 * dist / (s_dot + check_speed); //formula 2
 
-			    for(const auto& state:states){
-			    	s_end = {check_car_s, ref_vel, 0};
+		    	s_end = {(check_car_s - m_behind), ref_vel, 0};
+		    	d_end = {2+4*lane, 0, 0};
 
-			    	if(state == "LCL")
-			    		test_lane = lane - 1;
+		    	test_case tr;
+	    		tr.s = JMT(s_start, s_end, T);
+        		tr.d = JMT(d_start, d_end, T);
+        		tr.t = T;
 
-			    	if(state == "LCR")
-			    		test_lane = lane + 1;
+		    	test_case target;
+				target.s = s_end;
+				target.d = d_end;
+				target.t = T;
+				
+				cout << state << " cost: " << endl;
+				double cost = calculate_cost(tr, target, T, predictions, true);
 
-		    		d_end = {2+4*test_lane, 0, 0};
-		    		//test_case tr = PTG(s_start, d_start, s_end, d_end, T, predictions);
-		    		test_case tr;
-		    		tr.s = JMT(s_start, s_end, T);
-	        		tr.d = JMT(d_start, d_end, T);
-	        		tr.t = T;
+				if(cost < min_cost){
+					min_cost = cost;
+					state_min_cost = state;
+				}
 
-
-		    		test_case target;
-					target.s = s_end;
-					target.d = d_end;
-					target.t = T;
-
-					//cout << state << endl;
-					double cost = calculate_cost(tr, target, T, predictions, false);
-
-					if(cost < min_cost){
-						min_cost = cost;
-						state_min_cost = state;
-					}
-
-					state_tr.insert({state, tr});
-			    }
-*/
-			    //if(min_cost < 5){
-			    if(false){
-			    	//cout << state_min_cost << endl;
-/*
-			    	if(state_min_cost == "LCL"){
-			    		cout << " -> lane change left" << endl;
-			    		lane -= 1;
-			    	}
-
-			    	if(state_min_cost == "LCR"){
-			    		lane += 1;
-			    		cout << " -> lane change right" << endl;
-			    	}
-
-			    	trajectory_to_execute.s = state_tr[state_min_cost].s;
-        			trajectory_to_execute.d = state_tr[state_min_cost].d;
-*/
-			    }
-			    else{
-			    	cout << " -> follow the car in front" << endl;
-			    	double m_behind = 10; //meters behind the car
-			    	dist = (check_car_s - m_behind) - car_s;
-
-			    	cout << "dist: " << check_car_s - car_s << endl;
-			    	if(dist < 0){
-			    		m_behind = 0;
-			    		ref_vel -= 2;
-			    	}
-			    	
-          			T = 2 * dist / (s_dot + check_speed); //formula 2
-
-			    	s_end = {(check_car_s - m_behind), ref_vel, 0};
-			    	d_end = {2+4*lane, 0, 0};
-          			trajectory_to_execute.s = JMT(s_start, s_end, T);
-	        		trajectory_to_execute.d = JMT(d_start, d_end, T);
-			    }
-
-	        	
+				state_tr.insert({state, tr});
 	        }
 	        else{
 	        	cout << "FREE";
@@ -1106,7 +1064,7 @@ int main() {
 	          	}
 	          	else{ 
 	          		// accelerate
-	          		cout << "-> speeding up" << endl;
+	          		cout << " -> speeding up" << endl;
 		          	acc = 6 * to_acc(diff_vel);
 	          		T = diff_vel/acc; //Formula 1
 	          		dist = s_dot*T + T*T*acc/2; //formula 3
@@ -1115,11 +1073,101 @@ int main() {
 	          	s_end = {s+dist, ref_vel, 0};
 	          	d_end = {2+4*lane, 0, 0};
 
+	          	test_case tr;
+	    		tr.s = JMT(s_start, s_end, T);
+        		tr.d = JMT(d_start, d_end, T);
+        		tr.t = T;
 
-	          	trajectory_to_execute.s = JMT(s_start, s_end, T);
-	        	trajectory_to_execute.d = JMT(d_start, d_end, T);
+	          	test_case target;
+				target.s = s_end;
+				target.d = d_end;
+				target.t = T;
+				
+				cout << state << " cost: " << endl;
+				double cost = calculate_cost(tr, target, T, predictions, true);
 
+				if(cost < min_cost){
+					min_cost = cost;
+					state_min_cost = state;
+				}
+
+				state_tr.insert({state, tr});
 	        }
+
+	        // END: evaluate keep in lane
+
+		    // BEGIN: evaluate lane change 
+
+		    dist = s_dot;
+      		T = 2 * dist; //formula XX
+
+    		vector<string> states = {"LCL", "LCR"};
+		    if(lane == 0)
+		        states.erase(states.begin()); // remove LCL
+		    if(lane == 2)
+		        states.erase(states.end()); // remove LCR
+	    
+		    for(const auto& state:states){
+		    	s_end = {car_s + dist, ref_vel, 0};
+
+		    	if(state == "LCL")
+		    		test_lane = lane - 1;
+
+		    	if(state == "LCR")
+		    		test_lane = lane + 1;
+
+	    		d_end = {2+4*test_lane, 0, 0};
+	    		//test_case tr = PTG(s_start, d_start, s_end, d_end, T, predictions);
+	    		test_case tr;
+	    		tr.s = JMT(s_start, s_end, T);
+        		tr.d = JMT(d_start, d_end, T);
+        		tr.t = T;
+
+	    		test_case target;
+				target.s = s_end;
+				target.d = d_end;
+				target.t = T;
+				
+				cout << state << " cost: " << endl;
+				double cost = calculate_cost(tr, target, T, predictions, true);
+
+				if(cost < min_cost){
+					min_cost = cost;
+					state_min_cost = state;
+				}
+
+				state_tr.insert({state, tr});
+		    }
+
+		    // END: evaluate lane change 
+
+ 				
+
+
+
+
+			
+
+	    	if(state_min_cost == "LCL"){
+	    		cout << " -> lane change left" << endl;
+	    		lane -= 1;
+	    	}
+
+	    	if(state_min_cost == "LCR"){
+	    		lane += 1;
+	    		cout << " -> lane change right" << endl;
+	    	}
+
+    		if(state_min_cost == "KL"){
+	    		cout << " -> keep line" << endl;
+	    	}
+
+	    	trajectory_to_execute.s = state_tr[state_min_cost].s;
+			trajectory_to_execute.d = state_tr[state_min_cost].d;
+
+
+
+
 
 	        // Trayectory planner
 	        //trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
