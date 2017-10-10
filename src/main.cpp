@@ -1099,17 +1099,22 @@ int main() {
 
 		    // BEGIN: evaluate lane change 
 
-		    dist = s_dot;
-      		T = 2 * dist; //formula XX
+	        //ref_vel = s_dot + 5;
+	        //if(ref_vel > 47 * SPEED_FACTOR){
+	        //	ref_vel = 47 * SPEED_FACTOR;
+	       // }
+		    dist = s_dot * 2;
+      		T = 4; //formula XX
+
 
     		vector<string> states = {"LCL", "LCR"};
 		    if(lane == 0)
 		        states.erase(states.begin()); // remove LCL
 		    if(lane == 2)
 		        states.erase(states.end()); // remove LCR
-	    
+	    	
 		    for(const auto& state:states){
-		    	s_end = {car_s + dist, ref_vel, 0};
+		    	s_end = {car_s + dist, s_dot, 0};
 
 		    	if(state == "LCL")
 		    		test_lane = lane - 1;
@@ -1158,8 +1163,16 @@ int main() {
 	    		cout << " -> keep lane" << endl;
 	    	}
 
-	    	trajectory_to_execute.s = state_tr[state_min_cost].s;
-			trajectory_to_execute.d = state_tr[state_min_cost].d;
+	    	if(s_dot > 40 *SPEED_FACTOR && lane != 2){
+	    		cout << "\tCHANGE LANE" << endl;
+	    		lane += 1;
+	    		trajectory_to_execute.s = state_tr["LCR"].s;
+				trajectory_to_execute.d = state_tr["LCR"].d;
+	    	}else{
+	    		trajectory_to_execute.s = state_tr[state_min_cost].s;
+				trajectory_to_execute.d = state_tr[state_min_cost].d;
+	    	}
+	    		
 
 
 	        // Trayectory planner
