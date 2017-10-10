@@ -178,6 +178,9 @@ vector<double> getFrenet(double x, double y, double theta, const vector<double> 
 // Idea comes from: https://discussions.udacity.com/t/getxy-using-splines-distance-errors/352364/2?u=galvez
 vector<double> getXY(double s, double d)
 {	
+	double max_s = 6945.554;
+
+	s = fmod(s, max_s);
 	double x = f_0(s) + d*f_1(s);
 	double y = f_2(s) + d*f_3(s);
 
@@ -845,7 +848,7 @@ double gap(vector<vector<double>> sensor_fusion, double lane, double car_s, doub
 
 			//check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
 			// check s values greater than mine and s group
-			if(abs(check_car_s-car_s) < 30 || abs(check_car_s- current_car_s) < 30){
+			if(abs(check_car_s-car_s) < 20 || abs(check_car_s- current_car_s) < 20){
 				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
 				// also flag to try to change lanes.
 				//ref_vel = 29.5; //mph
@@ -1082,7 +1085,8 @@ int main() {
 	        	}
 
 	        	// this condition means that no collides
-			    if(min_cost < 10){
+	        	if(false){
+			    //if(min_cost < 10){
 			    	// so change lane
 
 			    	if(state_min_cost == "LCL"){
