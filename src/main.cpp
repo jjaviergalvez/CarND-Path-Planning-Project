@@ -1057,7 +1057,7 @@ int main() {
 	        	ref_vel = 47 * SPEED_FACTOR;
 	          	diff_vel = abs(ref_vel - s_dot); //use abs to consider little bumpings 
 	          	
-	          	if(diff_vel < 1){
+	          	if(diff_vel < 0.01){
 	          		// cruise control
 	          		//cout << " -> cruise control" << endl;
 	          		T = 1;
@@ -1103,8 +1103,10 @@ int main() {
 	        //if(ref_vel > 47 * SPEED_FACTOR){
 	        //	ref_vel = 47 * SPEED_FACTOR;
 	       // }
-		    dist = s_dot * 2;
-      		T = 4; //formula XX
+		    //dist = s_dot * 2;
+      		//T = 4; //formula XX
+      		dist = s_dot*3;
+      		T = 3; //formula XX
 
 
     		vector<string> states = {"LCL", "LCR"};
@@ -1148,7 +1150,7 @@ int main() {
 		    // END: evaluate lane change 
 
 			
-
+/*
 	    	if(state_min_cost == "LCL"){
 	    		cout << " -> lane change left" << endl;
 	    		lane -= 1;
@@ -1162,15 +1164,18 @@ int main() {
     		if(state_min_cost == "KL"){
 	    		cout << " -> keep lane" << endl;
 	    	}
-
-	    	if(s_dot > 40 *SPEED_FACTOR && lane != 2){
+*/
+	    	if(s_dot > 20 *SPEED_FACTOR && lane != 2){
 	    		cout << "\tCHANGE LANE" << endl;
 	    		lane += 1;
 	    		trajectory_to_execute.s = state_tr["LCR"].s;
 				trajectory_to_execute.d = state_tr["LCR"].d;
 	    	}else{
-	    		trajectory_to_execute.s = state_tr[state_min_cost].s;
-				trajectory_to_execute.d = state_tr[state_min_cost].d;
+	    		trajectory_to_execute.s = state_tr["KL"].s;
+				trajectory_to_execute.d = state_tr["KL"].d;
+
+	    		//trajectory_to_execute.s = state_tr[state_min_cost].s;
+				//trajectory_to_execute.d = state_tr[state_min_cost].d;
 	    	}
 	    		
 
