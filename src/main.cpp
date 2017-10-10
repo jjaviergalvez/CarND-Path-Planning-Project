@@ -832,6 +832,32 @@ test_case PTG(vector<double> start_s, vector<double> start_d, vector<double> goa
 }
 
 
+double gap(vector<vector<double>> sensor_fusion, double lane, double car_s, double current_car_s, int prev_size){
+	double too_close = 0.0;
+	for(int i = 0; i < sensor_fusion.size(); i++){
+		// Car is in my lane
+		float d = sensor_fusion[i][6];
+		if(d < (2+4*lane+2) && d > (2+4*lane-2)){
+			double vx = sensor_fusion[i][3];
+			double vy = sensor_fusion[i][4];
+			double check_speed = sqrt(vx*vx + vy*vy);
+			double check_car_s = sensor_fusion[i][5];
+
+			//check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
+			// check s values greater than mine and s group
+			if(abs(check_car_s-car_s) < 30 || abs(check_car_s- current_car_s) < 30){
+				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
+				// also flag to try to change lanes.
+				//ref_vel = 29.5; //mph
+				too_close = 10.0;
+			}
+		}
+	}
+
+	return too_close;
+}
+
+
 int main() {
   uWS::Hub h;
 
@@ -1006,7 +1032,7 @@ int main() {
 		    // BEGIN: evaluate keep in lane
 			string state = "KL";
 	        if(too_close){
-	        	cout << "CAR IN FRONT";
+	        	cout << "CAR";
 
 
 	        	//Check the feseability of change lane
@@ -1044,6 +1070,8 @@ int main() {
 						//cout << state << " cost: " << endl;
 						double cost = calculate_cost(tr, target, T, predictions, false);
 
+						cost += gap(sensor_fusion, test_lane, car_s + dist, car_s, prev_size);
+
 						if(cost < min_cost){
 							min_cost = cost;
 							state_min_cost = state;
@@ -1058,13 +1086,13 @@ int main() {
 			    	// so change lane
 
 			    	if(state_min_cost == "LCL"){
-			    		cout << " -> lane change left" << endl;
+			    		cout << " -> CHANGE LEFT" << endl;
 			    		lane -= 1;
 			    	}
 
 			    	if(state_min_cost == "LCR"){
 			    		lane += 1;
-			    		cout << " -> lane change right" << endl;
+			    		cout << " -> CHANGE RIGHT" << endl;
 			    	}
 
 			    	trajectory_to_execute.s = state_tr[state_min_cost].s;
@@ -1080,8 +1108,8 @@ int main() {
 	          		
 	          		ref_vel = check_speed;
 
-			    	cout << " -> follow the car in front" << endl;
-			    	double m_behind = 10; //meters behind the car
+			    	cout << " -> car following" << endl;
+			    	double m_behind = 5; //meters behind the car
 			    	dist = (check_car_s - m_behind) - car_s;
 
 			    	//cout << "dist: " << check_car_s - car_s << endl;
