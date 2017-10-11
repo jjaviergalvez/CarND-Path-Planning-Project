@@ -422,11 +422,25 @@ double logistic(double x){
 
 */
 double to_acc(double x){
-	double x_0 = 8.0, k = 0.5, L = 1.0;
+	double x_0 = 11.0, k = 0.5, L = MAX_ACCEL-3;
+	//double x_0 = 8.0, k = 0.5, L = 1.0;
 	//double x_0 = 3.0, k = 1.5, L = 1.0;
 	//double x_0 = 5.0, k = 1, L = 1.0;
 	return ( L / ( 1. + exp(-k*(x - x_0)) ) );
 }
+
+/*
+	Function that takes as input the differece of distance and output 
+	a smooth desaacceleration.
+
+*/
+double to_desacc(double x){
+	double x_0 = 20.0, k = -0.5, L = -MAX_ACCEL;
+	//double x_0 = 3.0, k = 1.5, L = 1.0;
+	//double x_0 = 5.0, k = 1, L = 1.0;
+	return ( L / ( 1. + exp(-k*(x - x_0)) ) );
+}
+
 
 /*
     Calculates the closest distance a particular vehicle during a trajectory.
@@ -914,7 +928,7 @@ int main() {
   double last_s, last_d;
   double t = 0;
 
-  h.onMessage([&last_s,&last_d,&t,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&max_s,&last_s,&last_d,&t,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -961,6 +975,8 @@ int main() {
 
           	int prev_size = previous_path_x.size();
 
+          	double real_car_s = car_s;
+
           	if(prev_size > 0){
           		car_s = last_s;
           	}
@@ -981,7 +997,8 @@ int main() {
 
           			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
           			// check s values greater than mine and s group
-          			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
+          			//if((check_car_s > car_s) && (check_car_s-car_s) < 30){
+          			if((check_car_s > real_car_s) && (check_car_s-car_s) < 30){
           				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
           				// also flag to try to change lanes.
           				//ref_vel = 29.5; //mph
@@ -1108,7 +1125,7 @@ int main() {
 	          		double vy = sensor_fusion[id_to_follow][4];
 	          		double check_speed = sqrt(vx*vx + vy*vy);
 	          		double check_car_s = sensor_fusion[id_to_follow][5];
-	          		check_car_s += ((double)prev_size * 0.02 * check_speed);
+	          		//check_car_s += ((double)prev_size * 0.02 * check_speed);
 	          		
 	          		ref_vel = check_speed;
 
@@ -1116,15 +1133,51 @@ int main() {
 			    	double m_behind = 5; //meters behind the car
 			    	dist = (check_car_s - m_behind) - car_s;
 
-			    	//cout << "dist: " << check_car_s - car_s << endl;
-			    	if(dist < 0){
-			    		m_behind = 0;
-			    		ref_vel -= 2;
-			    	}
-			    	
-	      			T = 2 * dist / (s_dot + check_speed); //formula 2
+			    	//cout << "dist:\t" << check_car_s - car_s << endl;
+			    	cout << "dist dist:\t" << dist << endl;
 
-			    	s_end = {(check_car_s - m_behind), ref_vel, 0};
+			    	diff_vel = ref_vel - s_dot;
+
+			    	//if(diff_vel < 0.1 && dist > m_behind){
+			    	if(dist > m_behind){
+			    		//cout << " -> cruise control" << endl;
+			    		//cout << "First case" << endl;
+			    		T = (2.0 * dist) / (s_dot + check_speed); //formula 2
+			    		acc = diff_vel / T;
+
+			    		if(acc > MAX_ACCEL){
+			    			cout << "Second case" << endl;
+			    			ref_vel = s_dot;
+			          		T = 1;
+			          		dist = ref_vel * T; //formula 3 with cero acc
+			    		}else{
+			    			cout << "First case" << endl;
+			    		}
+
+			    	}
+			    	else{
+				    	//if (s_dot < 0 || dist < m_behind){
+			    		
+				    		cout << "Third case" << endl;
+				    		ref_vel = 0;
+				    		T = ref_vel-s_dot / -MAX_ACCEL;
+				    		dist = T*(ref_vel+ s_dot) / 2.0;
+				    		//cout << "\n\n\tdist < 0" << endl;
+				    	
+				    	
+				    }
+				    s_end = {s+dist, ref_vel, 0};
+
+			    	cout << "T: " << T << endl;
+	      			cout << "dist: " << dist << endl;
+	      			cout << "s_dot: " << s_dot << endl;
+/*			    	
+	      			acc = (ref_vel - s_dot) / T;
+	      			cout << "acc: " << acc << endl;
+	      			cout << "ref_vel: " << ref_vel << endl;
+	      			cout << "s_dot: " << s_dot << endl;*/
+
+			    	//s_end = {(check_car_s - m_behind), ref_vel, 0};
 			    	d_end = {2+4*lane, 0, 0};
 
 		    		trajectory_to_execute.s = JMT(s_start, s_end, T);
@@ -1147,7 +1200,7 @@ int main() {
 	          	else{ 
 	          		// accelerate
 	          		cout << " -> speeding up" << endl;
-		          	acc = 6 * to_acc(diff_vel);
+		          	acc = to_acc(diff_vel);
 	          		T = diff_vel/acc; //Formula 1
 	          		dist = s_dot*T + T*T*acc/2; //formula 3
           		}	          	
@@ -1185,7 +1238,7 @@ int main() {
           	}
 
           	// save some useful variables for the next iteration
-          	last_s = s;
+          	last_s = fmod(s, max_s);
           	last_d = d;
           	prev_s_coeff = trajectory_to_execute.s;
 	        prev_d_coeff = trajectory_to_execute.d;
