@@ -848,6 +848,24 @@ test_case PTG(vector<double> start_s, vector<double> start_d, vector<double> goa
 	return best;
 }
 
+// This enssure that after a lane change the closest vehicle will be at 30 mts
+
+double gap2(vector<Vehicle> predictions, double lane, double car_s, double T){
+	double too_close = 0.0;
+	for(int i = 0; i < predictions.size(); i++){
+		vector<double> vehicle_state = predictions[i].state_in(T);
+		double d = vehicle_state[3];
+		if(d < (2+4*lane+2) && d > (2+4*lane-2)){
+			double check_car_s = vehicle_state[0];			
+			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
+				too_close = 10.0;
+			}
+		}
+	}
+
+	return too_close;
+
+}
 
 double gap(vector<vector<double>> sensor_fusion, double lane, double car_s, double current_car_s, int prev_size){
 	double too_close = 0.0;
@@ -1101,7 +1119,8 @@ int main() {
 							//cout << state << " cost: " << endl;
 							double cost = calculate_cost(tr, target, T, predictions, false);
 
-							cost += gap(sensor_fusion, test_lane, car_s + dist, car_s, prev_size);
+							//cost += gap(sensor_fusion, test_lane, car_s + dist, car_s, prev_size);
+							cost += gap2(predictions, test_lane, car_s + dist, T);
 
 							if(cost < min_cost){
 								min_cost = cost;
