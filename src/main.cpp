@@ -30,7 +30,7 @@ const double EXPECTED_JERK_IN_ONE_SEC = 2; // m/s/s
 const double MAX_ACCEL = 10.0; // m/s/s
 const double EXPECTED_ACC_IN_ONE_SEC = 1; // m/s in frenet frame
 const double SPEED_LIMIT = 49.5 * SPEED_FACTOR; //for the moment this speed corepond in a frenet frame
-const double VEHICLE_RADIUS = 2; // model vehicle as circle to simplify collision detection
+const double VEHICLE_RADIUS = 3; // model vehicle as circle to simplify collision detection
 
 // weights of cost functions
 const map<string, double> WEIGHTED_COST_FUNCTIONS = {
@@ -1108,7 +1108,7 @@ int main() {
 					    		test_lane = lane + 1;
 
 				    		d_end = {2+4*test_lane, 0, 0};
-				    		//test_case tr = PTG(s_start, d_start, s_end, d_end, T, predictions);
+				    		
 				    		test_case tr;
 				    		tr.s = JMT(s_start, s_end, T);
 				    		tr.d = JMT(d_start, d_end, T);
@@ -1119,7 +1119,6 @@ int main() {
 							target.d = d_end;
 							target.t = T;
 							
-							//cout << state << " cost: " << endl;
 							double cost = calculate_cost(tr, target, T, predictions, false);
 
 							//cost += gap(sensor_fusion, test_lane, car_s + dist, car_s, prev_size);
@@ -1134,9 +1133,8 @@ int main() {
 					    }
 		        	}
 
-		        	// this condition means that no collides
-		        	//if(false){
-				    if(min_cost < 10){
+		        	
+				    if(min_cost < 10){ // this condition means that no collides
 				    	// so change lane
 
 				    	if(state_min_cost == "LCL"){
@@ -1154,7 +1152,6 @@ int main() {
 				    	trajectory_to_execute.s = state_tr[state_min_cost].s;
 						trajectory_to_execute.d = state_tr[state_min_cost].d;
 						trajectory_to_execute.t = state_tr[state_min_cost].t;
-						//T_wait = prev_size * 0.02;
 				    }
 				    else{ //follow the car in front
 
@@ -1162,42 +1159,35 @@ int main() {
 		          		double vy = sensor_fusion[id_to_follow][4];
 		          		double check_speed = sqrt(vx*vx + vy*vy);
 		          		double check_car_s = sensor_fusion[id_to_follow][5];
-		          		//check_car_s += ((double)prev_size * 0.02 * check_speed);
+		          		check_car_s += ((double)prev_size * 0.02 * check_speed);
 		          		
 		          		ref_vel = check_speed;
 
 				    	cout << " -> car following" << endl;
-				    	double m_behind = 5; //meters behind the car
+				    	double m_behind = 10; //meters behind the car
 				    	dist = (check_car_s - m_behind) - car_s;
-
-				    	//cout << "dist:\t" << check_car_s - car_s << endl;
 				    	cout << "dist:\t" << dist << endl;
-
 				    	diff_vel = ref_vel - s_dot;
 
-				    	//if(diff_vel < 0.1 && dist > m_behind){
 				    	if(dist > m_behind){
-				    		//cout << " -> cruise control" << endl;
-				    		//cout << "First case" << endl;
+				    		// desaccelerate as quikly as possible to get the desired speed
 				    		T = (2.0 * dist) / (s_dot + check_speed); //formula 2
 				    		acc = diff_vel / T;
 
-				    		if(acc > MAX_ACCEL){
-				    			//cout << "Second case" << endl;
+				    		// but if the acceleration exccel the maximum...
+				    		if(acc > MAX_ACCEL-3){
+				    			// kee going with the same speed
 				    			ref_vel = s_dot;
-				          		T = 1;
+				          		T = 0.5;
 				          		dist = ref_vel * T; //formula 3 with cero acc
-				    		}else{
-				    			//cout << "First case" << endl;
 				    		}
-
 				    	}
 				    	else{
-					    	//if (s_dot < 0 || dist < m_behind){
-					    		//cout << "Third case" << endl;
-					    		ref_vel = 0;
-					    		T = ref_vel-s_dot / -(MAX_ACCEL-3);
-					    		dist = T*(ref_vel+ s_dot) / 2.0;
+					    	// When the target is behind the actual position of the car
+					    	// just break as much as posible
+				    		ref_vel = 0;
+				    		T = ref_vel-s_dot / -(MAX_ACCEL-4);
+				    		dist = T*(ref_vel+ s_dot) / 2.0;
 					    	
 					    }
 
@@ -1216,26 +1206,20 @@ int main() {
 		        	ref_vel = 47 * SPEED_FACTOR;
 		          	diff_vel = ref_vel - s_dot; //use abs to consider little bumpings
 
-		          	//cout << "\n dif_vel: " << diff_vel << endl;
-		          	
-
-		          	if(-0.1 < diff_vel && diff_vel < 0.1){
-		          		// cruise control
+		          	if(-0.05 < diff_vel && diff_vel < 0.05){
 		          		cout << " -> cruise control" << endl;
 		          		T = 0.5;
 		          		dist = ref_vel*T; //formula 3 with cero acc
-		          		//dist = s_dot*T; //formula 3 with cero acc
 		          	}
 		          	
-		          	if(diff_vel >=0.1){
-		          		// accelerate
+		          	if(diff_vel >=0.05){
 		          		cout << " -> speeding up" << endl;
 			          	acc = to_acc(diff_vel);
 		          		T = diff_vel/acc; //Formula 1
 		          		dist = s_dot*T + T*T*acc/2; //formula 3
 	          		}
 
-	          		if(diff_vel <= -0.1){
+	          		if(diff_vel <= -0.05){
 	          			cout << " -> brake" << endl;
 	          			ref_vel = 0;
 	          			T = ref_vel-s_dot / -(MAX_ACCEL-3);
@@ -1252,15 +1236,13 @@ int main() {
 		        }
 		    }
 
-	        // END: evaluate keep in lane
-
 
 	        // Trayectory planner
 	        //trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
 	        
 
           	// Send Values to the controller.
-	        // First the path that has not yet follower;
+	        // First, the path that has not yet follower;
           	next_x_vals = previous_path_x;
 	        next_y_vals = previous_path_y;
 
