@@ -238,20 +238,6 @@ public:
 };
 
 
-
-// Simpson's rule implementation; ingreal a function f(x) over the interval [a,b]
-// For more accurate result, the function being integrated need to be relatively smooth over the interval.
-// Base on info from https://en.wikipedia.org/wiki/Simpson%27s_rule
-template<class Function>
-double arc_length(Function& f, double a, double b)
-{
-	double c = (a+b)/2.0;
-	double d = (b-a)/6.0;
-
-	return d * (f.ds(a) + 4.0*f.ds(c) + f.ds(b));
-}
-
-
 /*
     Calculate the Jerk Minimizing Trajectory that connects the initial state
     to the final state in time T.
@@ -423,24 +409,8 @@ double logistic(double x){
 
 */
 double to_acc(double x){
-	//double x_0 = 11.0, k = 0.5, L = MAX_ACCEL-3;
-	//double x_0 = 6.0, k = 1, L = MAX_ACCEL-3;
 	double x_0 = 2.5, k = 2, L = MAX_ACCEL-3;
-	//double x_0 = 8.0, k = 0.5, L = 1.0;
-	//double x_0 = 3.0, k = 1.5, L = 1.0;
-	//double x_0 = 5.0, k = 1, L = 1.0;
-	return ( L / ( 1. + exp(-k*(x - x_0)) ) );
-}
 
-/*
-	Function that takes as input the differece of distance and output 
-	a smooth desaacceleration.
-
-*/
-double to_desacc(double x){
-	double x_0 = 20.0, k = -0.5, L = -MAX_ACCEL;
-	//double x_0 = 3.0, k = 1.5, L = 1.0;
-	//double x_0 = 5.0, k = 1, L = 1.0;
 	return ( L / ( 1. + exp(-k*(x - x_0)) ) );
 }
 
@@ -739,6 +709,9 @@ map<string, FnPtr> cf = {
     //{"total_accel_cost",  			total_accel_cost}
 };
 
+/*
+	Calculate the cost of a given trajectory
+*/
 double calculate_cost(test_case trajectory, test_case target, double goal_t, vector<Vehicle> predictions, bool verbose){
 	double cost = 0.0;
 
@@ -755,6 +728,9 @@ double calculate_cost(test_case trajectory, test_case target, double goal_t, vec
 	return cost;
 }
 
+/*
+	This function recieve a set of trjectories and return the trajectory with the minumum cost
+*/
 test_case min_trajectory_cost(vector<test_case> trajectories, test_case target, double T, vector<Vehicle> predictions){
 	double cost, min_cost = 99999;
 	test_case tr, best;
@@ -852,8 +828,7 @@ test_case PTG(vector<double> start_s, vector<double> start_d, vector<double> goa
 }
 
 // This enssure that after a lane change the closest vehicle will be at 30 mts
-
-double gap2(vector<Vehicle> predictions, double lane, double car_s, double T){
+double gap(vector<Vehicle> predictions, double lane, double car_s, double T){
 	double too_close = 0.0;
 	for(int i = 0; i < predictions.size(); i++){
 		vector<double> vehicle_state = predictions[i].state_in(T);
@@ -865,34 +840,6 @@ double gap2(vector<Vehicle> predictions, double lane, double car_s, double T){
 			}
 		}
 	}
-
-	return too_close;
-
-}
-
-double gap(vector<vector<double>> sensor_fusion, double lane, double car_s, double current_car_s, int prev_size){
-	double too_close = 0.0;
-	for(int i = 0; i < sensor_fusion.size(); i++){
-		// Car is in my lane
-		float d = sensor_fusion[i][6];
-		if(d < (2+4*lane+2) && d > (2+4*lane-2)){
-			double vx = sensor_fusion[i][3];
-			double vy = sensor_fusion[i][4];
-			double check_speed = sqrt(vx*vx + vy*vy);
-			double check_car_s = sensor_fusion[i][5];
-
-			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
-			// check s values greater than mine and s group
-			if(abs(check_car_s-car_s) < 20 || abs(check_car_s- current_car_s) < 20){
-			//if((check_car_s > car_s) && (check_car_s-car_s) < 30){
-				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
-				// also flag to try to change lanes.
-				//ref_vel = 29.5; //mph
-				too_close = 10.0;
-			}
-		}
-	}
-
 	return too_close;
 }
 
@@ -943,16 +890,14 @@ int main() {
   // start in lane 1
   double lane = 1;
 
-  // Have a reference velocity to target
+  // Have an intial reference velocity to target
   double ref_vel = CRUISING_SPEED;
 
   vector<double> prev_s_coeff, prev_d_coeff;
-  double last_s, last_d;
-  double t = 0;
+  double last_s, last_d, t;
   string current_state = "KL";
-  double T_wait = 100;
 
-  h.onMessage([&T_wait,&current_state,&max_s,&last_s,&last_d,&t,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&current_state,&max_s,&last_s,&last_d,&t,&prev_s_coeff,&prev_d_coeff,&lane,&ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -995,18 +940,15 @@ int main() {
           	vector<double> next_y_vals;
 
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+          	// TODO: Path Planning Project
 
           	int prev_size = previous_path_x.size();
-
           	double real_car_s = car_s;
-
           	if(prev_size > 0){
           		car_s = last_s;
           	}
 
           	// Looking for if is another car in the same lane in front of us 
-
           	bool too_close = false;
           	int id_to_follow;
           	// Find ref_v to use
@@ -1021,18 +963,16 @@ int main() {
 
           			check_car_s += ((double)prev_size * 0.02 * check_speed); // if using previous points can project s value out
           			// check s values greater than mine and s group
-          			//if((check_car_s > car_s) && (check_car_s-car_s) < 30){
+          			// using real car position will allow us to prevent a suden car apear just in front of the car
           			if((check_car_s > real_car_s) && (check_car_s-car_s) < 30){
-          				// Do some logic here, lower reference velocity so we dont crach into the car infront of us, could
-          				// also flag to try to change lanes.
-          				//ref_vel = 29.5; //mph
+          				// Flag to try to follow that car or change lanes. Also save the id of the car
           				too_close = true;
           				id_to_follow = i;
           			}
           		}
           	}          	
 
-          	// Make predictions base on sensor fusion data
+          	// Make predictions for each vechile base on sensor fusion data
           	vector<Vehicle> predictions;
           	for(int i = 0; i < sensor_fusion.size(); i++){
           		vector<double> car = sensor_fusion[i];
@@ -1040,7 +980,7 @@ int main() {
           		predictions.push_back(v);
           	}
 
-          	// Estimate the initial state
+          	// Estimate the initial state.
           	double s = car_s;
           	double d = car_d;
           	double s_dot = 0;
@@ -1058,31 +998,26 @@ int main() {
           	vector<double> s_start = {s, s_dot, s_ddot};
 	        vector<double> d_start = {d, d_dot, d_ddot};
 
-	        // Define the end-state
+	        // Declare a bunch of variables
 	        vector <double> s_end, d_end;
 	        double dist, T, acc, diff_vel;
 	        test_case trajectory_to_execute;
-
-
-	        /*
-				COMPUTE THE COST OF EACH POSIBLE STATE
-	        */
-
 	        map<string, test_case> state_tr;
 		    double min_cost = 99999.;
 		    string state_min_cost;
 		    double test_lane;
 
-		   	//if(true){
-			if(current_state == "KL" && prev_size < 50){		   		
-		   		current_state = "KL";
+			if(current_state == "KL" && prev_size < 50){
 		        if(too_close){
 		        	cout << "CAR";
 
-		        	//Check the feseability of change lane
+		        	// BEGIN: Calculate the cost of each lane change
+		        	
+		        	// For debuging prupose of the lane change uncomment the next line and comment
+		        	// the line if(true)
 		        	//if(s_dot < 45*SPEED_FACTOR){
 		        	if(true){
-		        		T = 2.5; //formula XX
+		        		T = 2.5; //my formula
 		        		dist = s_dot * T;
 
 		        		s_end = {car_s + dist, s_dot, 0};
@@ -1114,9 +1049,7 @@ int main() {
 							target.t = T;
 							
 							double cost = calculate_cost(tr, target, T, predictions, false);
-
-							//cost += gap(sensor_fusion, test_lane, car_s + dist, car_s, prev_size);
-							cost += gap2(predictions, test_lane, car_s + dist, T);
+							cost += gap(predictions, test_lane, car_s + dist, T);
 
 							if(cost < min_cost){
 								min_cost = cost;
@@ -1127,8 +1060,10 @@ int main() {
 					    }
 		        	}
 
-		        	
-				    if(min_cost < 10){ // this condition means that no collides
+		        	// END: Calculate the cost of each lane change
+
+		        	// if this condition is true, means that no collision will be in lane change
+				    if(min_cost < 10){ 
 				    	// so change lane
 
 				    	if(state_min_cost == "LCL"){
@@ -1147,18 +1082,18 @@ int main() {
 						trajectory_to_execute.d = state_tr[state_min_cost].d;
 						trajectory_to_execute.t = state_tr[state_min_cost].t;
 				    }
-				    else{ //follow the car in front
+				    else{ 
+				    	//following the car in front
+				    	cout << " -> car following" << endl;
 
 			        	double vx = sensor_fusion[id_to_follow][3];
 		          		double vy = sensor_fusion[id_to_follow][4];
 		          		double check_speed = sqrt(vx*vx + vy*vy);
 		          		double check_car_s = sensor_fusion[id_to_follow][5];
 		          		check_car_s += ((double)prev_size * 0.02 * check_speed);
-		          		
 		          		ref_vel = check_speed;
 
-				    	cout << " -> car following" << endl;
-				    	double m_behind = 10; //meters behind the car
+				    	double m_behind = 10; //meters behind the car that we want to be at most
 				    	dist = (check_car_s - m_behind) - car_s;
 				    	cout << "dist:\t" << dist << endl;
 				    	diff_vel = ref_vel - s_dot;
@@ -1170,7 +1105,7 @@ int main() {
 
 				    		// but if the acceleration exccel the maximum...
 				    		if(acc > MAX_ACCEL-3){
-				    			// kee going with the same speed
+				    			// ...keep going with the same speed
 				    			ref_vel = s_dot;
 				          		T = 0.5;
 				          		dist = ref_vel * T; //formula 3 with cero acc
@@ -1178,11 +1113,10 @@ int main() {
 				    	}
 				    	else{
 					    	// When the target is behind the actual position of the car
-					    	// just break as much as posible
+					    	// just break as much as posible. In other words an emergency beake
 				    		ref_vel = 0;
 				    		T = ref_vel-s_dot / -(MAX_ACCEL-4);
 				    		dist = T*(ref_vel+ s_dot) / 2.0;
-					    	
 					    }
 
 					    s_end = {s+dist, ref_vel, 0};
@@ -1195,6 +1129,7 @@ int main() {
 
 		        }
 		        else{
+		        	// no car is in front of the ego-car so try to drive at  crussing_speed
 		        	cout << "FREE";
 
 		        	ref_vel = CRUISING_SPEED;
@@ -1214,6 +1149,7 @@ int main() {
 	          		}
 
 	          		if(diff_vel <= -0.01){
+	          			// this is an amergency brake
 	          			cout << " -> brake" << endl;
 	          			ref_vel = 0;
 	          			T = ref_vel-s_dot / -(MAX_ACCEL-3);
@@ -1230,20 +1166,17 @@ int main() {
 		        }
 		    }
 
-
-	        // Trayectory planner
 	        //trajectory_to_execute = PTG(s_start, d_start, s_end, d_end, T, predictions);
 	        
 
           	// Send Values to the controller.
-	        // First, the path that has not yet follower;
+	        // First, the path that has not yet follower...
           	next_x_vals = previous_path_x;
 	        next_y_vals = previous_path_y;
 
-	        // And then, the values of this trajectory
+	        // ... then, the values of this trajectory
           	t = 0.0;
-          	if(current_state != "KL" && prev_size < 50){
-          		T_wait = prev_size;
+          	if(current_state != "KL" && prev_size < 50){// we are goping send all the points related to lane change... (1)
           		while(t < trajectory_to_execute.t){
 	          		t += 0.02;
 	          		s = poly_eval(trajectory_to_execute.s, t);
@@ -1262,7 +1195,8 @@ int main() {
           		current_state = "KL";
           	}
           	else{
-          		if (prev_size < 50){          			
+          		if (prev_size < 50){ // (1) and it will be until all the points related to change lane has been executed that 
+          			// we are going to send the next points related to keep lane 
 	          		for(int i = 0; i < 50-previous_path_x.size(); i++){
 		          		t += 0.02;
 		          		s = poly_eval(trajectory_to_execute.s, t);
@@ -1283,8 +1217,7 @@ int main() {
           	}
 
 
-
-		    // TODO END
+		    // TODO END: Path Planning Project
 		    
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
