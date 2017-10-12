@@ -29,7 +29,8 @@ const double MAX_JERK = 20.0; // m/s/s/s
 const double EXPECTED_JERK_IN_ONE_SEC = 2; // m/s/s
 const double MAX_ACCEL = 10.0; // m/s/s
 const double EXPECTED_ACC_IN_ONE_SEC = 1; // m/s in frenet frame
-const double SPEED_LIMIT = 49.5 * SPEED_FACTOR; //for the moment this speed corepond in a frenet frame
+const double SPEED_LIMIT = 50 * SPEED_FACTOR; //for the moment this speed corepond in a frenet frame
+const double CRUISING_SPEED = 45 * SPEED_FACTOR; //for the moment this speed corepond in a frenet frame
 const double VEHICLE_RADIUS = 3; // model vehicle as circle to simplify collision detection
 
 // weights of cost functions
@@ -943,7 +944,7 @@ int main() {
   double lane = 1;
 
   // Have a reference velocity to target
-  double ref_vel = 47.0 * SPEED_FACTOR;
+  double ref_vel = CRUISING_SPEED;
 
   vector<double> prev_s_coeff, prev_d_coeff;
   double last_s, last_d;
@@ -1071,15 +1072,7 @@ int main() {
 		    double min_cost = 99999.;
 		    string state_min_cost;
 		    double test_lane;
-/*
-		    if(t > (T_wait + 1) && current_state != "KL"){
-		    	cout << "s: " << s << endl;
-		    	cout << "d: " << d << endl;
-	    		cout << "\t\t \n\n E N T R O \n" << endl;
-	    		current_state = "KL";
-	        }
 
-*/
 		   	//if(true){
 			if(current_state == "KL" && prev_size < 50){		   		
 		   		current_state = "KL";
@@ -1090,7 +1083,9 @@ int main() {
 		        	//if(s_dot < 45*SPEED_FACTOR){
 		        	if(true){
 		        		T = 2.5; //formula XX
-		        		dist = s_dot*(T);
+		        		dist = s_dot * T;
+
+		        		s_end = {car_s + dist, s_dot, 0};
 
 						vector<string> states = {"LCL", "LCR"};
 					    if(lane == 0)
@@ -1099,8 +1094,7 @@ int main() {
 					        states.erase(states.end()); // remove LCR
 				    	
 					    for(const auto& state:states){
-					    	s_end = {car_s + dist, s_dot, 0};
-
+					    	
 					    	if(state == "LCL")
 					    		test_lane = lane - 1;
 
@@ -1203,23 +1197,23 @@ int main() {
 		        else{
 		        	cout << "FREE";
 
-		        	ref_vel = 47 * SPEED_FACTOR;
+		        	ref_vel = CRUISING_SPEED;
 		          	diff_vel = ref_vel - s_dot; //use abs to consider little bumpings
 
-		          	if(-0.05 < diff_vel && diff_vel < 0.05){
+		          	if(-0.01 < diff_vel && diff_vel < 0.01){
 		          		cout << " -> cruise control" << endl;
 		          		T = 0.5;
 		          		dist = ref_vel*T; //formula 3 with cero acc
 		          	}
 		          	
-		          	if(diff_vel >=0.05){
+		          	if(diff_vel >=0.01){
 		          		cout << " -> speeding up" << endl;
 			          	acc = to_acc(diff_vel);
 		          		T = diff_vel/acc; //Formula 1
 		          		dist = s_dot*T + T*T*acc/2; //formula 3
 	          		}
 
-	          		if(diff_vel <= -0.05){
+	          		if(diff_vel <= -0.01){
 	          			cout << " -> brake" << endl;
 	          			ref_vel = 0;
 	          			T = ref_vel-s_dot / -(MAX_ACCEL-3);
