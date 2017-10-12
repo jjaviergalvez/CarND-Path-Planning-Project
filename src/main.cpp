@@ -422,7 +422,9 @@ double logistic(double x){
 
 */
 double to_acc(double x){
-	double x_0 = 11.0, k = 0.5, L = MAX_ACCEL-3;
+	//double x_0 = 11.0, k = 0.5, L = MAX_ACCEL-3;
+	//double x_0 = 6.0, k = 1, L = MAX_ACCEL-3;
+	double x_0 = 3.0, k = 2, L = MAX_ACCEL-3;
 	//double x_0 = 8.0, k = 0.5, L = 1.0;
 	//double x_0 = 3.0, k = 1.5, L = 1.0;
 	//double x_0 = 5.0, k = 1, L = 1.0;
@@ -1211,24 +1213,33 @@ int main() {
 		        	cout << "FREE";
 
 		        	ref_vel = 47 * SPEED_FACTOR;
-		          	diff_vel = abs(ref_vel - s_dot); //use abs to consider little bumpings
+		          	diff_vel = ref_vel - s_dot; //use abs to consider little bumpings
 
 		          	//cout << "\n dif_vel: " << diff_vel << endl;
 		          	
-		          	if(diff_vel < 0.01){
+
+		          	if(-0.1 < diff_vel && diff_vel < 0.1){
 		          		// cruise control
 		          		cout << " -> cruise control" << endl;
-		          		T = 1;
+		          		T = 0.5;
 		          		dist = ref_vel*T; //formula 3 with cero acc
 		          		//dist = s_dot*T; //formula 3 with cero acc
 		          	}
-		          	else{
+		          	
+		          	if(diff_vel >=0.1){
 		          		// accelerate
 		          		cout << " -> speeding up" << endl;
 			          	acc = to_acc(diff_vel);
 		          		T = diff_vel/acc; //Formula 1
 		          		dist = s_dot*T + T*T*acc/2; //formula 3
-		          		
+	          		}
+
+	          		if(diff_vel <= -0.1){
+	          			cout << " -> brake" << endl;
+	          			ref_vel = 0;
+	          			T = ref_vel-s_dot / -(MAX_ACCEL-3);
+					    dist = T*(ref_vel+ s_dot) / 2.0;
+
 	          		}
 		          	
 		          	s_end = {s+dist, ref_vel, 0};
@@ -1260,7 +1271,7 @@ int main() {
 	          		t += 0.02;
 	          		s = poly_eval(trajectory_to_execute.s, t);
 	          		d = poly_eval(trajectory_to_execute.d, t);
-	          		cout <<"while: " << s << " , " << d << endl;
+	          		//cout <<"while: " << s << " , " << d << endl;
 	          		vector<double> XY = getXY(s, d);
 
 	          		next_x_vals.push_back(XY[0]);
