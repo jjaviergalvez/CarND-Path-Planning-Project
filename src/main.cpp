@@ -19,33 +19,35 @@ using Eigen::VectorXd;
 
 // BEGIN: C O N S T A N T S definition
 
+// These are important constant ofr the current implementation
 const double SPEED_FACTOR = 0.447; // To transform from MPH in cartesian coordinate to m/s in Frenet
+const double CRUISING_SPEED = 45 * SPEED_FACTOR; //for the moment this speed corepond in a frenet frame
+const double VEHICLE_RADIUS = 3; // model vehicle as circle to simplify collision detection
+const double MAX_ACCEL = 10.0; // m/s/s
 
+// This bounch of constants don't have utility on the current implementation.
 const int N_SAMPLES = 5;
 const vector<double> SIGMA_S = {10.0, 4.0, 2.0}; // s, s_dot, s_double_dot
 const vector<double> SIGMA_D = {1.0, 1.0, 1.0};
 const double SIGMA_T = 2.0;
 const double MAX_JERK = 20.0; // m/s/s/s
 const double EXPECTED_JERK_IN_ONE_SEC = 2; // m/s/s
-const double MAX_ACCEL = 10.0; // m/s/s
 const double EXPECTED_ACC_IN_ONE_SEC = 1; // m/s in frenet frame
 const double SPEED_LIMIT = 50 * SPEED_FACTOR; //for the moment this speed corepond in a frenet frame
-const double CRUISING_SPEED = 45 * SPEED_FACTOR; //for the moment this speed corepond in a frenet frame
-const double VEHICLE_RADIUS = 3; // model vehicle as circle to simplify collision detection
 
 // weights of cost functions
 const map<string, double> WEIGHTED_COST_FUNCTIONS = {
-	{"exceeds_speed_limit_cost", 	1.0},
-	//{"negative_speed_cost", 		10.0},
+	//{"exceeds_speed_limit_cost", 	1.0},
+	//{"negative_speed_cost", 		1.0},
 	//{"time_diff_cost",    			1.0},
     //{"s_diff_cost",       			1.0},
     //{"d_diff_cost",       			1.0},
     //{"efficiency_cost",   			1.0},
-    {"max_jerk_cost",     			1.0},
+    //{"max_jerk_cost",     			1.0},
     //{"total_jerk_cost",   			1.0},
-    {"collision_cost",    			10.0},
+    {"collision_cost",    			1.0},
     //{"buffer_cost",       			1.0},
-    {"max_accel_cost",    			1.0}
+    //{"max_accel_cost",    			1.0},
     //{"total_accel_cost",  			1.0}
 };
 
@@ -695,17 +697,17 @@ double total_jerk_cost(test_case traj, test_case target, double T, vector<Vehicl
 typedef double (*FnPtr)(test_case, test_case, double, vector<Vehicle>);
 
 map<string, FnPtr> cf = {
-	{"exceeds_speed_limit_cost",  	exceeds_speed_limit_cost},
+	//{"exceeds_speed_limit_cost",  	exceeds_speed_limit_cost},
 	//{"negative_speed_cost", 		negative_speed_cost},
 	//{"time_diff_cost",    		  	time_diff_cost},
     //{"s_diff_cost",       		  	s_diff_cost},
     //{"d_diff_cost",					d_diff_cost},
     //{"efficiency_cost",   			efficiency_cost},
-    {"max_jerk_cost",     			max_jerk_cost},
+    //{"max_jerk_cost",     			max_jerk_cost},
     //{"total_jerk_cost",   			total_jerk_cost},
     {"collision_cost",    			collision_cost},
     //{"buffer_cost",      	 		buffer_cost},
-    {"max_accel_cost",    			max_accel_cost}
+    //{"max_accel_cost",    			max_accel_cost},
     //{"total_accel_cost",  			total_accel_cost}
 };
 
@@ -836,7 +838,7 @@ double gap(vector<Vehicle> predictions, double lane, double car_s, double T){
 		if(d < (2+4*lane+2) && d > (2+4*lane-2)){
 			double check_car_s = vehicle_state[0];			
 			if((check_car_s > car_s) && (check_car_s-car_s) < 30){
-				too_close = 10.0;
+				too_close = 1.0;
 			}
 		}
 	}
@@ -1063,7 +1065,7 @@ int main() {
 		        	// END: Calculate the cost of each lane change
 
 		        	// if this condition is true, means that no collision will be in lane change
-				    if(min_cost < 10){ 
+				    if(min_cost < 1){ 
 				    	// so change lane
 
 				    	if(state_min_cost == "LCL"){
