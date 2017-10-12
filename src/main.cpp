@@ -424,7 +424,7 @@ double logistic(double x){
 double to_acc(double x){
 	//double x_0 = 11.0, k = 0.5, L = MAX_ACCEL-3;
 	//double x_0 = 6.0, k = 1, L = MAX_ACCEL-3;
-	double x_0 = 3.0, k = 2, L = MAX_ACCEL-3;
+	double x_0 = 2.5, k = 2, L = MAX_ACCEL-3;
 	//double x_0 = 8.0, k = 0.5, L = 1.0;
 	//double x_0 = 3.0, k = 1.5, L = 1.0;
 	//double x_0 = 5.0, k = 1, L = 1.0;
@@ -1080,7 +1080,8 @@ int main() {
 	        }
 
 */
-		   	if(true){
+		   	//if(true){
+			if(current_state == "KL" && prev_size < 50){		   		
 		   		current_state = "KL";
 		        if(too_close){
 		        	cout << "CAR";
