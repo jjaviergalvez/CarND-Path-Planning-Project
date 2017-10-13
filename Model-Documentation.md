@@ -19,7 +19,7 @@ A description of the code model for generating paths.
 ### Working in Frenet frame
 
 The first to consider is that I implemented a function that translates points from Frenet frame to cartesian frame with a **smooth interpolation** as the original getXY() lack this property. To achive that, I modyfied the data file `highway_map.csv` adding as last row a copy of the first row with a modification of the value of the `s` value, where I used the maximum `s` value before wrapping around the track back to 0, that is `6945.554`.
-Then I use a [spline library](https://github.com/ttk592/spline/) to fit the `s` paired with each column data. That allow me to interpolate between each waypoint with a smooth transition. This resulted in four splines that are combined in the following way to translate from frame to frame:
+Then I use a [spline library](https://github.com/ttk592/spline/) to fit the `s` paired with each column data. That allow me to interpolate between each waypoint with a smooth transition (this idea comes from the discussion forum). This resulted in four splines that are combined in the following way to translate from frame to frame:
 
 ```
     s = fmod(s, max_s);
