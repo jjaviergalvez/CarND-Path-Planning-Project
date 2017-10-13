@@ -54,7 +54,7 @@ const map<string, double> WEIGHTED_COST_FUNCTIONS = {
 // END: C O N S T A N T S definition
 
 //This splines will be used in getXY() function
-tk::spline f_0, f_1, f_2, f_3;
+tk::spline f_x, f_dx, f_y, f_dy;
 
 
 // for convenience
@@ -184,8 +184,8 @@ vector<double> getXY(double s, double d)
 	double max_s = 6945.554;
 
 	s = fmod(s, max_s);
-	double x = f_0(s) + d*f_1(s);
-	double y = f_2(s) + d*f_3(s);
+	double x = f_x(s) + d*f_dx(s);
+	double y = f_y(s) + d*f_dy(s);
 
 	return {x,y};
 }
@@ -884,10 +884,10 @@ int main() {
   }
 
   // set (X,Y) points to the splines that will be used in getXY() function
-  f_0.set_points(map_waypoints_s, map_waypoints_x);
-  f_1.set_points(map_waypoints_s, map_waypoints_dx);
-  f_2.set_points(map_waypoints_s, map_waypoints_y);
-  f_3.set_points(map_waypoints_s, map_waypoints_dy);
+  f_x.set_points(map_waypoints_s, map_waypoints_x);
+  f_dx.set_points(map_waypoints_s, map_waypoints_dx);
+  f_y.set_points(map_waypoints_s, map_waypoints_y);
+  f_dy.set_points(map_waypoints_s, map_waypoints_dy);
 
   // start in lane 1
   double lane = 1;
